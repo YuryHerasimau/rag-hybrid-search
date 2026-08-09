@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Секреты и конфиг окружения
+.env
+.env.*
+!.env.example
+
+# Данные корпуса (сырые + обработанные) — не коммитим тяжёлое
+data/raw/
+data/processed/
+data/images/
+
+# Кэши эмбеддингов, индексы, локальные модели
+.cache/
+storage/
+qdrant_storage/
+*.faiss
+models/
+
+# Результаты прогонов eval
+eval/results/
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
