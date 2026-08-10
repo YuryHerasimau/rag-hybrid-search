@@ -69,8 +69,11 @@ API и техтерминов на английском → нужны **мул�
   `src/rag/`, парсер MD-вики с сохранением структуры заголовков + CLI
   `python -m rag.ingest`, фикстуры и тесты (6 зелёных). Qdrant — в
   embedded-режиме (локальная папка), Docker не требуется.
-- [ ] **Фаза 1 — Naive RAG baseline.** Только dense + простой чанкинг, ответ
-  через Claude end-to-end. → Первые метрики Ragas. **Baseline записан.**
+- [x] **Фаза 1 — Naive RAG baseline.** Dense-эмбеддинги (multilingual-e5-small,
+  CPU) + простой чанкинг (SentenceSplitter) → индекс в Qdrant embedded. Retriever
+  (`python -m rag.query ... --retrieve-only`) и генерация ответа через Claude
+  (`python -m rag.query ...`, grounded-промпт). Численный baseline по Ragas
+  заполним в Фазе 6, когда будет golden-набор.
 - [ ] **Фаза 2 — Hybrid.** + BM25 + RRF. Замер дельты.
 - [ ] **Фаза 3 — Reranker.** + bge-reranker-base. Замер дельты.
 - [ ] **Фаза 4 — Чанкинг.** MarkdownNodeParser vs SemanticSplitter. Замер дельты.
@@ -84,7 +87,9 @@ API и техтерминов на английском → нужны **мул�
 
 ## Ablation study
 
-Главный артефакт проекта — таблица заполняется по мере прохождения фаз.
+Главный артефакт проекта — таблица заполняется в Фазе 6, когда появится
+golden-набор и eval-харнесс: каждая конфигурация retrieval (это флаги в коде)
+прогоняется через Ragas, и мы видим изолированный вклад каждого приёма.
 
 | Конфигурация | faithfulness | answer_relevancy | context_precision | context_recall |
 |---|---|---|---|---|

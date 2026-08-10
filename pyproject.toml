@@ -20,7 +20,8 @@ phase1 = [
     "llama-index-embeddings-huggingface>=0.3",
     "llama-index-vector-stores-qdrant>=0.3",
     "llama-index-llms-anthropic>=0.3",
-    "qdrant-client>=1.9",
+    # 1.19 убрал IDF_EMBEDDING_MODELS, который импортит llama-index-vector-stores-qdrant 0.10
+    "qdrant-client>=1.16,<1.19",
     "sentence-transformers>=3.0",
 ]
 eval = [
