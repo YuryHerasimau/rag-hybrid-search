@@ -137,6 +137,10 @@ def load_wiki(root: str | Path) -> list[WikiDocument]:
     docs: list[WikiDocument] = []
     for path in sorted(root.rglob("*.md")):
         rel = path.relative_to(root).as_posix()
-        raw = path.read_text(encoding="utf-8")
-        docs.append(parse_markdown(raw, rel))
+        # errors="replace" — на реальном экспорте бывают битые байты; не роняем инжест
+        raw = path.read_text(encoding="utf-8", errors="replace")
+        doc = parse_markdown(raw, rel)
+        if not doc.text.strip():
+            continue  # пустые страницы (в экспорте их бывает много) пропускаем
+        docs.append(doc)
     return docs
