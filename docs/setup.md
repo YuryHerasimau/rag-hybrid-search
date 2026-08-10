@@ -5,35 +5,44 @@
 
 ## Предпосылки
 
-- Python 3.11+
-- Docker (для Qdrant)
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) (менеджер пакетов/окружений)
 - Баланс на **Anthropic API** (console.anthropic.com) — не подписка Claude Pro.
   Подписка Pro не даёт программного доступа к моделям.
 
-## Шаги (целевые для Фазы 0)
+Docker **не нужен**: Qdrant используем в embedded-режиме (локальная папка).
 
-1. **Зависимости.** Используем `uv` (или обычный venv + pip):
+## Шаги
+
+1. **Зависимости.** Лёгкое ядро (Фаза 0):
    ```bash
-   uv sync           # либо: python -m venv .venv && pip install -e .
+   uv sync
+   ```
+   Тяжёлый ML ставим по фазам, чтобы не грузить слабый ноут раньше времени:
+   ```bash
+   uv sync --group phase1   # llama-index, эмбеддинги, qdrant-client (Фаза 1)
+   uv sync --group eval     # ragas (Фаза 6)
    ```
 
 2. **Переменные окружения.** Скопировать шаблон и вписать ключ API:
    ```bash
    cp .env.example .env
-   # ANTHROPIC_API_KEY=sk-ant-...
+   # ANTHROPIC_API_KEY=sk-ant-...   (ключ из console.anthropic.com, не Pro)
    ```
 
-3. **Qdrant локально:**
-   ```bash
-   docker run -p 6333:6333 -v "$PWD/qdrant_storage:/qdrant/storage" qdrant/qdrant
-   ```
-
-4. **Данные корпуса.** Положить выгрузку вики в `data/raw/` (Markdown) и
+3. **Данные корпуса.** Положить выгрузку вики в `data/raw/` (Markdown) и
    `data/images/` (PNG). Каталоги в `.gitignore` — корпус не коммитим.
 
-5. **Инжест:** (появится в Фазе 0/1)
+4. **Инжест (проверка на фикстурах уже сейчас):**
    ```bash
-   python -m rag.ingest
+   uv run python -m rag.ingest --path tests/fixtures/wiki --show-sections
+   # на своих данных:
+   uv run python -m rag.ingest --show-sections
+   ```
+
+5. **Тесты:**
+   ```bash
+   uv run pytest -q
    ```
 
 ## Заметки по железу (CPU-ноут без GPU)

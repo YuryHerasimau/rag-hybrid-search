@@ -44,7 +44,7 @@ API и техтерминов на английском → нужны **мул�
 | LLM (генерация) | **Claude Sonnet** | платим только за генерацию |
 | LLM (дёшево: caption, judge) | **Claude Haiku 4.5** | копейки за токен |
 | Эмбеддинги | `intfloat/multilingual-e5-small` → апгрейд `BAAI/bge-m3` | оба мультиязычные; e5-small быстрый на CPU, bge-m3 качественнее |
-| Vector store | **Qdrant** (локально, Docker) | нативный hybrid, «как в проде» |
+| Vector store | **Qdrant** (embedded, локальная папка) | нативный hybrid; Docker не нужен |
 | BM25 | LlamaIndex `BM25Retriever` (in-memory) | прозрачно для обучения |
 | Fusion | `QueryFusionRetriever` c **RRF** | скоры BM25/cosine несопоставимы напрямую |
 | Reranker | `BAAI/bge-reranker-base` на CPU, top-20→top-5 | m3-версия для CPU слишком тяжёлая |
@@ -64,9 +64,11 @@ API и техтерминов на английском → нужны **мул�
 
 Легенда: `[ ]` не начато · `[~]` в работе · `[x]` готово
 
-- [~] **Фаза 0 — Скелет проекта.** Репозиторий, зависимости (uv/pyproject),
-  конфиг, `.env.example`, Docker для Qdrant, каркас пакета, парсинг MD-вики в
-  документы с метаданными (путь, заголовки).
+- [x] **Фаза 0 — Скелет проекта.** Репозиторий, зависимости (uv/pyproject,
+  установка по фазам), конфиг (`pydantic-settings` + `.env`), каркас пакета
+  `src/rag/`, парсер MD-вики с сохранением структуры заголовков + CLI
+  `python -m rag.ingest`, фикстуры и тесты (6 зелёных). Qdrant — в
+  embedded-режиме (локальная папка), Docker не требуется.
 - [ ] **Фаза 1 — Naive RAG baseline.** Только dense + простой чанкинг, ответ
   через Claude end-to-end. → Первые метрики Ragas. **Baseline записан.**
 - [ ] **Фаза 2 — Hybrid.** + BM25 + RRF. Замер дельты.
