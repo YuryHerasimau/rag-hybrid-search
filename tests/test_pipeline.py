@@ -1,8 +1,11 @@
 """Офлайн-тесты пайплайна (без сети и без API-ключа)."""
 
+from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
+
 from rag.generation.answer import QA_PROMPT
 from rag.index import to_documents
 from rag.ingest.markdown import WikiDocument
+from rag.retrieval import RRFHybridRetriever
 
 
 def test_to_documents_maps_metadata():
@@ -20,3 +23,33 @@ def test_qa_prompt_is_grounded():
     assert "ТОЛЬКО на основе контекста" in rendered
     assert "нет ответа" in rendered
     assert "КОНТЕКСТ" in rendered and "ВОПРОС" in rendered
+
+
+class _FakeRetriever:
+    """Отдаёт заранее заданный ранжированный список нод (имитация ретривера)."""
+
+    def __init__(self, nodes):
+        self._nodes = nodes
+
+    def retrieve(self, _query):
+        return self._nodes
+
+
+def _nws(node_id: str, score: float) -> NodeWithScore:
+    return NodeWithScore(node=TextNode(id_=node_id, text=node_id), score=score)
+
+
+def test_rrf_merges_by_node_id_and_boosts_consensus():
+    # dense ставит A первым, B вторым; bm25 ставит B первым, C вторым.
+    # B встречается у обоих → RRF должен поднять его выше одиночных A и C.
+    dense = _FakeRetriever([_nws("A", 0.9), _nws("B", 0.8)])
+    bm25 = _FakeRetriever([_nws("B", 12.0), _nws("C", 7.0)])
+
+    hybrid = RRFHybridRetriever([dense, bm25], top_k=3, k=60)
+    result = hybrid._retrieve(QueryBundle(query_str="q"))
+
+    ids = [n.node.node_id for n in result]
+    assert ids[0] == "B"  # консенсус двух ретриверов победил
+    assert set(ids) == {"A", "B", "C"}
+    # score(B) = 1/(60+2) + 1/(60+1); score(A) = 1/(60+1); B строго больше A
+    assert result[0].score > result[1].score

@@ -14,15 +14,21 @@ import argparse
 
 from rich.console import Console
 
-from rag.retrieval import build_dense_retriever, format_source
+from rag.retrieval import build_retriever, format_source
 
 console = Console()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="rag.query", description="Запрос к RAG (Фаза 1: dense)")
+    parser = argparse.ArgumentParser(prog="rag.query", description="Запрос к RAG (Фаза 2: hybrid)")
     parser.add_argument("question", help="вопрос на естественном языке")
     parser.add_argument("--top-k", type=int, default=5, help="сколько чанков доставать")
+    parser.add_argument(
+        "--mode",
+        choices=["dense", "bm25", "hybrid"],
+        default="hybrid",
+        help="режим поиска: dense (Фаза 1), bm25 (лексический), hybrid (RRF, по умолч.)",
+    )
     parser.add_argument(
         "--retrieve-only",
         action="store_true",
@@ -30,7 +36,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    retriever = build_dense_retriever(top_k=args.top_k)
+    console.print(f"[dim]режим: {args.mode}[/dim]")
+    retriever = build_retriever(args.mode, top_k=args.top_k)
     nodes = retriever.retrieve(args.question)
 
     console.print(f"\n[bold]Найдено чанков:[/bold] {len(nodes)}")

@@ -24,6 +24,11 @@ phase1 = [
     "qdrant-client>=1.16,<1.19",
     "sentence-transformers>=3.0",
 ]
+# Фаза 2 — гибрид: BM25 (лексический поиск) + RRF. Ставится поверх phase1:
+#   uv sync --group phase1 --group phase2
+phase2 = [
+    "llama-index-retrievers-bm25>=0.3",
+]
 eval = [
     "ragas>=0.2",
     "datasets>=2.19",

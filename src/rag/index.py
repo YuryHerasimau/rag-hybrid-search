@@ -4,6 +4,11 @@
 SentenceSplitter, плотные эмбеддинги, хранение в Qdrant в embedded-режиме
 (локальная папка storage/qdrant, без Docker-сервера).
 
+Фаза 2 — гибрид: те же ноды дополнительно сохраняются в docstore.json, чтобы
+их мог поднять лексический BM25-retriever. Важно, что Qdrant и docstore строятся
+из ОДНОГО набора нод за один прогон — тогда node_id совпадают и RRF корректно
+сливает дубликаты из dense- и BM25-выдачи.
+
 Structure-aware чанкинг подключим в Фазе 4; здесь намеренно самый простой.
 """
 
@@ -13,6 +18,8 @@ from pathlib import Path
 
 from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.schema import BaseNode
+from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 
@@ -20,7 +27,10 @@ from rag.config import PROJECT_ROOT, settings
 from rag.embeddings import build_embed_model
 from rag.ingest import load_wiki
 
-STORAGE_DIR = PROJECT_ROOT / "storage" / "qdrant"
+STORAGE_ROOT = PROJECT_ROOT / "storage"
+STORAGE_DIR = STORAGE_ROOT / "qdrant"
+# Ноды для BM25 (лексический поиск не хранится в Qdrant — ему нужен сырой текст)
+DOCSTORE_PATH = STORAGE_ROOT / "docstore.json"
 
 
 def _client() -> QdrantClient:
@@ -45,27 +55,50 @@ def build_index(
     chunk_size: int = 512,
     chunk_overlap: int = 64,
 ) -> VectorStoreIndex:
-    """Строит индекс с нуля (пересоздаёт коллекцию)."""
+    """Строит индекс с нуля (пересоздаёт коллекцию).
+
+    Чанкинг делаем ЯВНО (не через transformations), чтобы получить один список
+    нод и использовать его дважды: для эмбеддингов в Qdrant и для docstore
+    (BM25). Так node_id гарантированно совпадают между dense- и BM25-выдачей.
+    """
     wiki = load_wiki(path)
     docs = to_documents(wiki)
 
+    splitter = SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    nodes = splitter.get_nodes_from_documents(docs, show_progress=True)
+
+    # 1) Сохраняем ноды на диск — их поднимет лексический BM25 (Фаза 2)
+    STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+    docstore = SimpleDocumentStore()
+    docstore.add_documents(nodes)
+    docstore.persist(str(DOCSTORE_PATH))
+
+    # 2) Эмбеддим те же ноды и кладём в Qdrant (dense-поиск)
     client = _client()
     if client.collection_exists(settings.qdrant_collection):
         client.delete_collection(settings.qdrant_collection)
 
     vector_store = QdrantVectorStore(client=client, collection_name=settings.qdrant_collection)
     storage = StorageContext.from_defaults(vector_store=vector_store)
-    splitter = SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
-    index = VectorStoreIndex.from_documents(
-        docs,
+    index = VectorStoreIndex(
+        nodes,
         storage_context=storage,
         embed_model=build_embed_model(),
-        transformations=[splitter],
         show_progress=True,
     )
     client.close()
     return index
+
+
+def load_nodes() -> list[BaseNode]:
+    """Поднимает сохранённые ноды из docstore (для BM25-retriever)."""
+    if not DOCSTORE_PATH.exists():
+        raise FileNotFoundError(
+            "docstore.json не найден. Пересобери индекс: python -m rag.index build"
+        )
+    docstore = SimpleDocumentStore.from_persist_path(str(DOCSTORE_PATH))
+    return list(docstore.docs.values())
 
 
 def load_index() -> VectorStoreIndex:

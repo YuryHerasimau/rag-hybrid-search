@@ -74,7 +74,11 @@ API и техтерминов на английском → нужны **мул�
   (`python -m rag.query ... --retrieve-only`) и генерация ответа через Claude
   (`python -m rag.query ...`, grounded-промпт). Численный baseline по Ragas
   заполним в Фазе 6, когда будет golden-набор.
-- [ ] **Фаза 2 — Hybrid.** + BM25 + RRF. Замер дельты.
+- [x] **Фаза 2 — Hybrid.** + BM25 (лексический, `bm25s`) + слияние с dense через
+  **RRF** (реализован явно в `RRFHybridRetriever`). Ноды сохраняются в
+  `storage/docstore.json` при сборке; режим выбирается флагом
+  `python -m rag.query ... --mode dense|bm25|hybrid`. Численный замер дельты —
+  в Фазе 6 (нужен golden-набор).
 - [ ] **Фаза 3 — Reranker.** + bge-reranker-base. Замер дельты.
 - [ ] **Фаза 4 — Чанкинг.** MarkdownNodeParser vs SemanticSplitter. Замер дельты.
 - [ ] **Фаза 5 — Мультимодальность + цитаты/abstention.** Caption PNG через

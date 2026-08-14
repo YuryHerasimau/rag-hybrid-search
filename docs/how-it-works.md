@@ -11,14 +11,17 @@
 WikiDocument
    │  rag.index.to_documents + SentenceSplitter — чанкинг
    ▼
-чанки (nodes)
+чанки (nodes) ──────────────► docstore.json  (сырой текст для BM25) [Фаза 2]
    │  rag.embeddings — multilingual-e5-small (CPU), префиксы query:/passage:
    ▼
 векторы  ──►  Qdrant embedded (storage/qdrant)   [rag.index.build_index]
    │
    │  запрос пользователя
    ▼
-rag.retrieval — dense-поиск похожих чанков (топ-k)
+rag.retrieval — режимы поиска (топ-k):
+   • dense  — векторная близость (Qdrant)                     [Фаза 1]
+   • bm25   — лексический поиск по словам (docstore)          [Фаза 2]
+   • hybrid — dense + bm25, слияние рангов через RRF          [Фаза 2]
    │
    ▼
 rag.generation — Claude отвечает ТОЛЬКО по найденным чанкам (grounded-промпт)
@@ -26,15 +29,21 @@ rag.generation — Claude отвечает ТОЛЬКО по найденным 
 
 CLI:
 - `python -m rag.ingest --path <dir> --show-sections` — посмотреть, как парсятся страницы
-- `python -m rag.index build --path <dir>` — собрать/пересобрать индекс
+- `python -m rag.index build --path <dir>` — собрать/пересобрать индекс (Qdrant + docstore)
 - `python -m rag.query "вопрос" --retrieve-only` — только поиск (без API-ключа)
+- `python -m rag.query "вопрос" --mode dense|bm25|hybrid` — выбрать режим поиска (по умолч. hybrid)
 - `python -m rag.query "вопрос"` — полный ответ через Claude (нужен ключ в .env)
+
+> **RRF (Reciprocal Rank Fusion):** у BM25 и косинуса несопоставимые шкалы скоров,
+> поэтому складываем не скоры, а РАНГИ: `score(doc) = Σ 1/(k + rank)` (k=60).
+> Документ, попавший в топ у обоих ретриверов, поднимается выше одиночных.
 
 ## Артефакты на диске (всё в .gitignore)
 
 | Путь | Что это | Можно удалять? |
 |------|---------|----------------|
 | `storage/qdrant/` | векторный индекс Qdrant (embedded, SQLite + файлы) | да — пересоберётся через `rag.index build` |
+| `storage/docstore.json` | сырые ноды для BM25 (лексический поиск) | да — пересоберётся через `rag.index build` |
 | `.venv/` | виртуальное окружение uv | да — восстановится через `uv sync` |
 | `.env` | секреты (API-ключ) | нет — это твой ключ |
 | кэш модели HF | скачанные веса e5 (вне репозитория, в кэше HuggingFace) | да — скачается заново |
@@ -54,7 +63,8 @@ CLI:
 |--------|--------|-------|
 | ядро | pydantic, pydantic-settings, python-dotenv, pyyaml, rich | Фаза 0 |
 | `phase1` | llama-index-core, -embeddings-huggingface, -vector-stores-qdrant, -llms-anthropic, qdrant-client<1.19, sentence-transformers (+ torch) | Фаза 1 |
+| `phase2` | llama-index-retrievers-bm25 (bm25s, PyStemmer) | Фаза 2 |
 | `eval` | ragas, datasets | Фаза 6 |
 | `dev` | pytest, ruff | всегда |
 
-Установка: `uv sync` (ядро) или `uv sync --group phase1` и т.д.
+Установка: `uv sync` (ядро) или `uv sync --group phase1 --group phase2` и т.д.
