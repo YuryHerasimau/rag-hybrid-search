@@ -3,8 +3,8 @@
 - Фаза 1: dense — плотный (векторный) поиск по Qdrant.
 - Фаза 2: bm25 — лексический поиск по словам; hybrid — слияние dense+bm25
   через RRF (Reciprocal Rank Fusion).
-
-reranker подключим в Фазе 3.
+- Фаза 3: reranker — cross-encoder (bge-reranker-base) пере-оценивает пары
+  «запрос↔чанк» и наводит финальный порядок поверх широкого списка кандидатов.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from collections import defaultdict
 from llama_index.core.retrievers import BaseRetriever, VectorIndexRetriever
 from llama_index.core.schema import NodeWithScore, QueryBundle
 
+from rag.config import settings
 from rag.index import load_index, load_nodes
 
 # --- dense (Фаза 1) -----------------------------------------------------------
@@ -99,17 +100,62 @@ def build_hybrid_retriever(top_k: int = 5, candidates: int = 20) -> RRFHybridRet
     return RRFHybridRetriever([dense, bm25], top_k=top_k)
 
 
+# --- reranker (Фаза 3) --------------------------------------------------------
+
+
+def build_reranker(top_n: int = 5):
+    """Cross-encoder bge-reranker-base: пере-оценивает пары «запрос↔чанк».
+
+    keep_retrieval_score=True сохраняет исходный скор ретрива в
+    node.metadata — удобно видеть, как reranker переставил кандидатов.
+    """
+    from llama_index.core.postprocessor import SentenceTransformerRerank
+
+    return SentenceTransformerRerank(
+        model=settings.reranker_model,
+        top_n=top_n,
+        keep_retrieval_score=True,
+    )
+
+
+class RerankedRetriever(BaseRetriever):
+    """Достаёт широкий список базовым ретривером и пере-сортирует reranker'ом."""
+
+    def __init__(self, base: BaseRetriever, reranker) -> None:
+        self._base = base
+        self._reranker = reranker
+        super().__init__()
+
+    def _retrieve(self, query_bundle: QueryBundle) -> list[NodeWithScore]:
+        candidates = self._base.retrieve(query_bundle)
+        return self._reranker.postprocess_nodes(candidates, query_bundle=query_bundle)
+
+
 # --- диспетчер + форматирование ----------------------------------------------
 
 
-def build_retriever(mode: str = "hybrid", top_k: int = 5) -> BaseRetriever:
+def _base_retriever(mode: str, k: int) -> BaseRetriever:
     if mode == "dense":
-        return build_dense_retriever(top_k=top_k)
+        return build_dense_retriever(top_k=k)
     if mode == "bm25":
-        return build_bm25_retriever(top_k=top_k)
+        return build_bm25_retriever(top_k=k)
     if mode == "hybrid":
-        return build_hybrid_retriever(top_k=top_k)
+        return build_hybrid_retriever(top_k=k)
     raise ValueError(f"Неизвестный режим retrieval: {mode!r} (dense|bm25|hybrid)")
+
+
+def build_retriever(
+    mode: str = "hybrid",
+    top_k: int = 5,
+    rerank: bool = False,
+    candidates: int = 20,
+) -> BaseRetriever:
+    """Собирает retriever. С rerank=True: базовый достаёт `candidates`
+    кандидатов, cross-encoder оставляет top_k наиболее релевантных."""
+    if not rerank:
+        return _base_retriever(mode, top_k)
+    base = _base_retriever(mode, candidates)
+    return RerankedRetriever(base, build_reranker(top_n=top_k))
 
 
 def format_source(node: NodeWithScore) -> str:
@@ -117,4 +163,7 @@ def format_source(node: NodeWithScore) -> str:
     loc = meta.get("rel_path", "?")
     title = meta.get("title", "")
     score = node.score if node.score is not None else 0.0
-    return f"[{score:.3f}] {loc} — {title}"
+    # если работал reranker, keep_retrieval_score кладёт исходный скор в метаданные
+    retr = meta.get("retrieval_score")
+    prefix = f"[rerank {score:.3f} | retr {retr:.3f}]" if retr is not None else f"[{score:.3f}]"
+    return f"{prefix} {loc} — {title}"

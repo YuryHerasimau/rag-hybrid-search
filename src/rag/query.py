@@ -6,6 +6,9 @@
 
     # полный ответ через Claude (нужен ANTHROPIC_API_KEY в .env):
     python -m rag.query "как создать платёж?"
+
+    # гибрид + reranker (Фаза 3), только retrieval:
+    python -m rag.query "как создать платёж?" --mode hybrid --rerank --retrieve-only
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ console = Console()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="rag.query", description="Запрос к RAG (Фаза 2: hybrid)")
+    parser = argparse.ArgumentParser(prog="rag.query", description="Запрос к RAG (Фаза 3: +reranker)")
     parser.add_argument("question", help="вопрос на естественном языке")
     parser.add_argument("--top-k", type=int, default=5, help="сколько чанков доставать")
     parser.add_argument(
@@ -30,19 +33,34 @@ def main() -> None:
         help="режим поиска: dense (Фаза 1), bm25 (лексический), hybrid (RRF, по умолч.)",
     )
     parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="пере-оценить кандидатов cross-encoder'ом (bge-reranker-base): топ-N кандидатов → top_k",
+    )
+    parser.add_argument(
+        "--candidates",
+        type=int,
+        default=20,
+        help="сколько кандидатов достать до reranker (по умолч. 20)",
+    )
+    parser.add_argument(
         "--retrieve-only",
         action="store_true",
         help="только показать найденные чанки, без вызова LLM (не нужен ключ)",
     )
     args = parser.parse_args()
 
-    console.print(f"[dim]режим: {args.mode}[/dim]")
-    retriever = build_retriever(args.mode, top_k=args.top_k)
+    tag = f"{args.mode}{' + rerank' if args.rerank else ''}"
+    console.print(f"[dim]режим: {tag}[/dim]")
+    retriever = build_retriever(
+        args.mode, top_k=args.top_k, rerank=args.rerank, candidates=args.candidates
+    )
     nodes = retriever.retrieve(args.question)
 
     console.print(f"\n[bold]Найдено чанков:[/bold] {len(nodes)}")
     for i, n in enumerate(nodes, 1):
-        console.print(f"  {i}. {format_source(n)}")
+        # markup=False: format_source содержит [...] со скорами — не разметка rich
+        console.print(f"  {i}. {format_source(n)}", markup=False)
 
     if args.retrieve_only:
         console.print("\n[dim]--retrieve-only: LLM не вызывается.[/dim]")
@@ -66,7 +84,7 @@ def main() -> None:
     console.print(str(response))
     console.print("\n[dim]Источники:[/dim]")
     for n in response.source_nodes:
-        console.print(f"  • {format_source(n)}")
+        console.print(f"  • {format_source(n)}", markup=False)
 
 
 if __name__ == "__main__":

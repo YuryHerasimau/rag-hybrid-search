@@ -5,7 +5,7 @@ from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
 from rag.generation.answer import QA_PROMPT
 from rag.index import to_documents
 from rag.ingest.markdown import WikiDocument
-from rag.retrieval import RRFHybridRetriever
+from rag.retrieval import RerankedRetriever, RRFHybridRetriever
 
 
 def test_to_documents_maps_metadata():
@@ -53,3 +53,23 @@ def test_rrf_merges_by_node_id_and_boosts_consensus():
     assert set(ids) == {"A", "B", "C"}
     # score(B) = 1/(60+2) + 1/(60+1); score(A) = 1/(60+1); B строго больше A
     assert result[0].score > result[1].score
+
+
+class _FakeReranker:
+    """Имитация cross-encoder: переставляет ноды в обратном порядке, режет до top_n."""
+
+    def __init__(self, top_n):
+        self._top_n = top_n
+
+    def postprocess_nodes(self, nodes, query_bundle=None):
+        return list(reversed(nodes))[: self._top_n]
+
+
+def test_reranked_retriever_delegates_to_base_then_reranker():
+    base = _FakeRetriever([_nws("A", 0.9), _nws("B", 0.8), _nws("C", 0.7)])
+    reranked = RerankedRetriever(base, _FakeReranker(top_n=2))
+    result = reranked._retrieve(QueryBundle(query_str="q"))
+
+    ids = [n.node.node_id for n in result]
+    # базовый отдал A,B,C; reranker развернул → C,B,A и обрезал до 2
+    assert ids == ["C", "B"]

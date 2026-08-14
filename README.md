@@ -79,7 +79,10 @@ API и техтерминов на английском → нужны **мул�
   `storage/docstore.json` при сборке; режим выбирается флагом
   `python -m rag.query ... --mode dense|bm25|hybrid`. Численный замер дельты —
   в Фазе 6 (нужен golden-набор).
-- [ ] **Фаза 3 — Reranker.** + bge-reranker-base. Замер дельты.
+- [x] **Фаза 3 — Reranker.** + `bge-reranker-base` (cross-encoder). Базовый
+  ретривер достаёт широкий список кандидатов (`--candidates`, по умолч. 20),
+  cross-encoder пере-оценивает пары «запрос↔чанк» и оставляет top_k:
+  `python -m rag.query ... --rerank`. Численный замер дельты — в Фазе 6.
 - [ ] **Фаза 4 — Чанкинг.** MarkdownNodeParser vs SemanticSplitter. Замер дельты.
 - [ ] **Фаза 5 — Мультимодальность + цитаты/abstention.** Caption PNG через
   Claude vision; Pydantic-ответ с grounded-цитатами.
