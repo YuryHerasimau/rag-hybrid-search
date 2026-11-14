@@ -69,22 +69,25 @@ def main() -> None:
             console.print(f"\n[cyan]#{i}[/cyan] {snippet}…")
         return
 
-    # Полный ответ через Claude
-    from llama_index.core import get_response_synthesizer
-    from llama_index.core.query_engine import RetrieverQueryEngine
+    # Полный ответ через Claude — grounded, структурированный (Фаза 5)
+    from rag.generation.answer import answer_grounded, unsupported_citations
 
-    from rag.generation.answer import QA_PROMPT, build_llm
+    result = answer_grounded(nodes, args.question)
 
-    llm = build_llm()
-    synth = get_response_synthesizer(llm=llm, text_qa_template=QA_PROMPT)
-    engine = RetrieverQueryEngine(retriever=retriever, response_synthesizer=synth)
-    response = engine.query(args.question)
+    if result.abstained:
+        console.print(f"\n[yellow]Воздержался:[/yellow] {result.answer}", markup=False)
+        return
 
     console.print("\n[bold green]Ответ:[/bold green]")
-    console.print(str(response))
-    console.print("\n[dim]Источники:[/dim]")
-    for n in response.source_nodes:
-        console.print(f"  • {format_source(n)}", markup=False)
+    console.print(result.answer, markup=False)
+    console.print("\n[dim]Цитаты:[/dim]")
+    for c in result.citations:
+        console.print(f"  • {c.source} — «{c.quote}»", markup=False)
+
+    # сигнал галлюцинации: источник цитаты вне найденных чанков
+    bad = unsupported_citations(result, nodes)
+    if bad:
+        console.print(f"\n[red]⚠ цитаты на источники вне контекста:[/red] {bad}", markup=False)
 
 
 if __name__ == "__main__":

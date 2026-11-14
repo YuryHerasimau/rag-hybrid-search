@@ -4,7 +4,6 @@ from pathlib import Path
 
 from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
 
-from rag.generation.answer import QA_PROMPT
 from rag.index import build_nodes, to_documents
 from rag.ingest import load_wiki
 from rag.ingest.markdown import WikiDocument
@@ -70,14 +69,6 @@ def test_qdrant_client_is_singleton(tmp_path, monkeypatch):
         assert idx._client() is idx._client()
     finally:
         idx._close_client()
-
-
-def test_qa_prompt_is_grounded():
-    rendered = QA_PROMPT.format(context_str="КОНТЕКСТ", query_str="ВОПРОС")
-    # промпт обязан требовать опоры на контекст и разрешать «нет ответа»
-    assert "ТОЛЬКО на основе контекста" in rendered
-    assert "нет ответа" in rendered
-    assert "КОНТЕКСТ" in rendered and "ВОПРОС" in rendered
 
 
 class _FakeRetriever:
