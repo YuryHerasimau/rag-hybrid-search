@@ -47,6 +47,20 @@ def test_build_nodes_rejects_unknown_strategy():
         build_nodes(load_wiki(FIXTURES), chunking="magic")
 
 
+def test_qdrant_client_is_singleton(tmp_path, monkeypatch):
+    # Embedded-Qdrant лочит папку: второй QdrantClient на тот же путь падает.
+    # _client() обязан возвращать один и тот же экземпляр в рамках процесса —
+    # иначе dense, а затем hybrid в одном процессе конфликтуют (регрессия Фазы 4).
+    import rag.index as idx
+
+    monkeypatch.setattr(idx, "STORAGE_DIR", tmp_path / "qdrant")
+    idx._close_client()  # сброс возможного ранее открытого клиента
+    try:
+        assert idx._client() is idx._client()
+    finally:
+        idx._close_client()
+
+
 def test_qa_prompt_is_grounded():
     rendered = QA_PROMPT.format(context_str="КОНТЕКСТ", query_str="ВОПРОС")
     # промпт обязан требовать опоры на контекст и разрешать «нет ответа»

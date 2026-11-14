@@ -15,6 +15,7 @@ build_nodes()/флаг --chunking. По умолчанию simple (baseline Фа
 
 from __future__ import annotations
 
+import atexit
 from pathlib import Path
 
 from llama_index.core import Document, StorageContext, VectorStoreIndex
@@ -34,9 +35,29 @@ STORAGE_DIR = STORAGE_ROOT / "qdrant"
 DOCSTORE_PATH = STORAGE_ROOT / "docstore.json"
 
 
+# Embedded-Qdrant держит эксклюзивный файловый лок на папку хранилища: в одном
+# процессе допустим только ОДИН QdrantClient на путь. Поэтому клиент — синглтон,
+# иначе второй load_index() в том же процессе (например dense, а затем hybrid)
+# падает с «Storage folder is already accessed by another instance».
+_qdrant_client: QdrantClient | None = None
+
+
 def _client() -> QdrantClient:
-    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-    return QdrantClient(path=str(STORAGE_DIR))
+    global _qdrant_client
+    if _qdrant_client is None:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+        _qdrant_client = QdrantClient(path=str(STORAGE_DIR))
+        # чистое закрытие на выходе: освобождает лок (иначе следующий процесс
+        # может упереться в stale-lock) и глушит шум msvcrt в QdrantClient.__del__
+        atexit.register(_close_client)
+    return _qdrant_client
+
+
+def _close_client() -> None:
+    global _qdrant_client
+    if _qdrant_client is not None:
+        _qdrant_client.close()
+        _qdrant_client = None
 
 
 CHUNKING_STRATEGIES = ("simple", "structure", "semantic")
@@ -151,7 +172,7 @@ def build_index(
         embed_model=build_embed_model(),
         show_progress=True,
     )
-    client.close()
+    _close_client()  # освобождаем лок сразу после сборки (не ждём выхода)
     return index
 
 
