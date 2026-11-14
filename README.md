@@ -148,6 +148,9 @@ uv run python -m rag.query "вопрос" --mode hybrid --rerank
 **hybrid по MRR/precision чуть хуже dense** (RRF-консенсус размывает точность
 dense, когда bm25 не согласен) — и именно reranker поверх это исправляет.
 
+> `precision@k` при ~1 релевантном источнике на вопрос — вспомогательный сигнал;
+> основные метрики здесь — `hit@k`, `MRR`, `recall@k`.
+
 > Воспроизвести: `uv run python -m rag.index build --path <срез> --chunking structure`
 > затем `uv run python -m rag.eval --golden deliveryservice.json`.
 

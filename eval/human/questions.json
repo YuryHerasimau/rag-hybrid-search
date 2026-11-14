@@ -1,0 +1,15 @@
+[
+  { "question": "Как авторизоваться для интеграции?", "answerable": true },
+  { "question": "Как авторизоваться курьеру?", "answerable": true },
+  { "question": "Как войти по email и паролю?", "answerable": true },
+  { "question": "Как отправить код подтверждения на номер телефона?", "answerable": true },
+  { "question": "Что приходит в ответе при успешной авторизации логиста?", "answerable": true },
+  { "question": "Как создать нового логиста в админке?", "answerable": true },
+  { "question": "Как создать новый пункт выдачи?", "answerable": true },
+  { "question": "Как сгенерировать QR-код для check-in курьера?", "answerable": true },
+  { "question": "Как настроить часовые пояса пункта выдачи?", "answerable": true },
+  { "question": "Как создать схему начислений и выплат?", "answerable": true },
+  { "question": "Как включить автоназначение по оптимальному маршруту?", "answerable": true },
+  { "question": "Какая сегодня погода в Париже?", "answerable": false },
+  { "question": "Как приготовить борщ?", "answerable": false }
+]

@@ -38,3 +38,6 @@ eval/results/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Результаты human-eval содержат ответы по реальной (приватной) вике
+eval/human/results*.json

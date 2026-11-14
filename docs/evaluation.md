@@ -39,7 +39,8 @@ Ragas не используем — считаем сами, прозрачно:
 
 - **Retrieval** (`rag.eval.metrics`) — детерминированно, без API: по
   `relevant_sources` считаем hit@k, MRR, recall@k, precision@k (source-level,
-  чанки одного файла схлопываются).
+  чанки одного файла схлопываются). `precision@k` при ~1 релевантном источнике
+  на вопрос — вспомогательный сигнал; основные — hit@k, MRR, recall@k.
 - **Generation** (`rag.eval.judge`) — свой лёгкий LLM-судья на Haiku:
   faithfulness (опора на контекст) и answer_relevancy через `structured_predict`
   (видимый промпт). Плюс `abstention_accuracy` — детерминированно (решение
