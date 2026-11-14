@@ -135,19 +135,28 @@ golden-набор и eval-харнесс: каждая конфигурация 
 - [docs/architecture.md](docs/architecture.md) — архитектура и обоснование решений
 - [docs/evaluation.md](docs/evaluation.md) — методология оценки и CI-гейт
 
-## Структура репозитория (целевая)
+## Структура репозитория
 
 ```
 rag-hybrid-serach/
-├── data/                 # корпус (в .gitignore)
-├── docs/                 # документация
+├── data/                 # корпус (в .gitignore); data/README.md — что сюда класть
+├── docs/                 # документация (how-it-works, setup, architecture, evaluation)
 ├── src/rag/              # исходники пакета
-│   ├── ingest/           # парсинг MD, caption картинок, чанкинг
-│   ├── retrieval/        # BM25, dense, RRF, reranker
-│   ├── generation/       # Claude + Pydantic-схемы ответа
-│   └── config.py
-├── eval/                 # golden-set + прогоны Ragas
-├── .env.example
-├── pyproject.toml
+│   ├── ingest/           # парсинг Markdown-вики (+ caption картинок — Фаза 5)
+│   │   ├── __main__.py   #   CLI инжеста
+│   │   └── markdown.py   #   разбор .md: фронтматтер, секции, header_path
+│   ├── generation/       # Claude + grounded-промпт (Pydantic-схемы ответа — Фаза 5)
+│   │   └── answer.py
+│   ├── config.py         # pydantic-settings (.env)
+│   ├── embeddings.py     # multilingual-e5-small (CPU)
+│   ├── index.py          # сборка индекса: Qdrant (dense) + docstore.json (BM25)
+│   ├── retrieval.py      # dense / BM25 / RRF-гибрид / reranker
+│   └── query.py          # CLI запроса
+├── tests/                # pytest + fixtures/wiki (синтетический корпус)
+├── storage/              # индекс Qdrant + docstore (в .gitignore)
+├── .env.example          # шаблон конфига (ключ API и т.д.)
+├── pyproject.toml        # зависимости по фазам (uv)
 └── README.md
+
+# появится позже: eval/ (golden-set + прогоны Ragas, Фаза 6)
 ```
