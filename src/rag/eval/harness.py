@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from rag.eval.dataset import GoldenItem
+from rag.eval.judge import judge_faithfulness, judge_relevancy
 from rag.eval.metrics import (
     dedup_preserve_order,
     hit_at_k,
@@ -18,6 +19,7 @@ from rag.eval.metrics import (
     recall_at_k,
     reciprocal_rank,
 )
+from rag.generation.answer import answer_grounded, format_context_for_llm
 
 
 @dataclass
@@ -64,4 +66,61 @@ def evaluate_retrieval(
         recall_at_k=rec / n,
         precision_at_k=prec / n,
         k=k,
+    )
+
+
+@dataclass
+class GenerationReport:
+    config: str
+    n: int  # всего прогнано вопросов
+    abstention_accuracy: float  # доля верных решений «отвечать / воздержаться»
+    faithfulness: float  # среднее по отвеченным отвечаемым (судья)
+    answer_relevancy: float
+    n_judged: int  # сколько ответов оценил судья
+
+    def summary(self) -> str:
+        return (
+            f"[{self.config}] n={self.n} | abstention_acc={self.abstention_accuracy:.2f} "
+            f"| faithfulness={self.faithfulness:.2f} | answer_relevancy={self.answer_relevancy:.2f} "
+            f"(оценено судьёй: {self.n_judged})"
+        )
+
+
+def evaluate_generation(
+    golden: list[GoldenItem],
+    retriever,
+    gen_llm,
+    judge_llm,
+    config: str = "?",
+    limit: int | None = None,
+) -> GenerationReport:
+    """Генерирует grounded-ответы и оценивает их (API: генерация + судья).
+
+    - abstention_accuracy — детерминированно: совпало ли решение воздержаться с
+      разметкой answerable (ключевая анти-галлюцинационная метрика);
+    - faithfulness / answer_relevancy — судьёй, только по отвеченным отвечаемым
+      вопросам (на воздержании оценивать нечего).
+    """
+    items = golden[:limit] if limit else golden
+    abst_correct = 0
+    faith_sum = rel_sum = 0.0
+    judged = 0
+    for g in items:
+        nodes = retriever.retrieve(g.question)
+        result = answer_grounded(nodes, g.question, llm=gen_llm)
+        if result.abstained == (not g.answerable):
+            abst_correct += 1
+        if g.answerable and not result.abstained:
+            ctx = format_context_for_llm(nodes)
+            faith_sum += judge_faithfulness(judge_llm, ctx, result.answer)
+            rel_sum += judge_relevancy(judge_llm, g.question, result.answer)
+            judged += 1
+    n = len(items)
+    return GenerationReport(
+        config=config,
+        n=n,
+        abstention_accuracy=abst_correct / n if n else 0.0,
+        faithfulness=faith_sum / judged if judged else 0.0,
+        answer_relevancy=rel_sum / judged if judged else 0.0,
+        n_judged=judged,
     )

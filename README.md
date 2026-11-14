@@ -117,9 +117,10 @@ uv run python -m rag.query "вопрос" --mode hybrid --rerank
   через Claude vision → текстовый узел.
 - [~] **Фаза 6 — Evaluation harness + CI-гейт.** Сделано (Шаг 1): golden-набор
   (`eval/golden/`), детерминированные retrieval-метрики (hit@k/MRR/recall@k/
-  precision@k, реализованы явно, **без API**), ablation-раннер
-  `rag.eval` — первые числа уже есть (ниже). Осталось: generation-метрики через
-  Haiku-судью (Шаг 2) и CI-гейт на GitHub Actions (Шаг 3).
+  precision@k, реализованы явно, **без API**), ablation-раннер `rag.eval`.
+  Сделано (Шаг 2): generation-метрики (faithfulness/answer_relevancy/
+  abstention) через свой лёгкий Haiku-судью. Числа — в ablation ниже. Осталось:
+  CI-гейт на GitHub Actions с порогом регрессии (Шаг 3).
 - [ ] **Фаза 7 (опц.) — API/UI + router.** FastAPI + Streamlit; query router и
   text-to-SQL как «фаза 2 источников».
 
@@ -147,18 +148,24 @@ dense, когда bm25 не согласен) — и именно reranker по�
 > Воспроизвести: `uv run python -m rag.index build --path <срез> --chunking structure`
 > затем `uv run python -m rag.eval --golden deliveryservice.json`.
 
-### Generation-метрики (Шаг 2, Ragas/Haiku — в работе)
+### Generation-метрики (Шаг 2, свой Haiku-судья)
 
-Faithfulness и answer_relevancy оценивают уже сам ответ (прокси галлюцинаций);
-считаются через LLM-судью, заполняются после Шага 2.
+Оценка **самого ответа** через лёгкий LLM-судью (прозрачный промпт, не ragas).
+Прогон: `hybrid + rerank`, chunking=`structure`, генерация и судья — Haiku,
+16 вопросов golden-набора.
 
-| Конфигурация | faithfulness | answer_relevancy | context_precision | context_recall |
-|---|---|---|---|---|
-| Naive (dense + simple chunk) | — | — | — | — |
-| + Hybrid (BM25 + RRF) | — | — | — | — |
-| + Reranker | — | — | — | — |
-| + Structure chunking | — | — | — | — |
-| + Semantic chunking | — | — | — | — |
+| Метрика | Значение | Что показывает |
+|---|---|---|
+| faithfulness | **0.95** | ответ опирается на контекст (прямой прокси галлюцинаций) |
+| answer_relevancy | 0.83 | ответ по существу вопроса |
+| abstention_accuracy | **0.94** | верно решает отвечать / воздержаться (15/16) |
+
+Из 14 отвечаемых Haiku ответил на 13 (один ошибочно пропустил), оба off-topic
+корректно ушли в abstention. context_precision/recall — в retrieval-таблице выше
+(recall@k / precision@k).
+
+> Воспроизвести: `uv run python -m rag.eval --golden deliveryservice.json --generation --limit 16`.
+> Генерацию можно поднять до Sonnet: `--gen-model claude-sonnet-5` (дороже, abstention-ошибок меньше).
 
 ---
 

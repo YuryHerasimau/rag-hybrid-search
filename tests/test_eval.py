@@ -1,7 +1,10 @@
-"""Тесты eval-харнесса: retrieval-метрики и загрузка golden-набора (без API)."""
+"""Тесты eval-харнесса: метрики, golden, судья, generation (всё без API)."""
+
+from llama_index.core.schema import NodeWithScore, TextNode
 
 from rag.eval.dataset import GOLDEN_DIR, GoldenItem, load_golden
-from rag.eval.harness import evaluate_retrieval
+from rag.eval.harness import evaluate_generation, evaluate_retrieval
+from rag.eval.judge import JudgeScore, judge_faithfulness, judge_relevancy
 from rag.eval.metrics import (
     dedup_preserve_order,
     hit_at_k,
@@ -9,6 +12,7 @@ from rag.eval.metrics import (
     recall_at_k,
     reciprocal_rank,
 )
+from rag.generation.answer import NO_ANSWER, Citation, GroundedAnswer
 
 REL = {"a.md", "b.md"}
 
@@ -61,8 +65,6 @@ class _FakeRetriever:
     """Отдаёт фиксированные источники (через ноды с rel_path в metadata)."""
 
     def __init__(self, sources):
-        from llama_index.core.schema import NodeWithScore, TextNode
-
         self._nodes = [
             NodeWithScore(node=TextNode(text=s, metadata={"rel_path": s}), score=1.0)
             for s in sources
@@ -70,6 +72,67 @@ class _FakeRetriever:
 
     def retrieve(self, _q):
         return self._nodes
+
+
+class _ScoreLLM:
+    """Судья: всегда возвращает заданный score."""
+
+    def __init__(self, score):
+        self._score = score
+
+    def structured_predict(self, output_cls, prompt, **kwargs):
+        return JudgeScore(score=self._score, reason="тест")
+
+
+class _GenLLM:
+    """Генератор: воздерживается на off-topic, иначе даёт ответ."""
+
+    def structured_predict(self, output_cls, prompt, **kwargs):
+        q = kwargs.get("query_str", "")
+        if "погода" in q or "Netflix" in q:
+            return GroundedAnswer(answer=NO_ANSWER, abstained=True)
+        return GroundedAnswer(
+            answer="ответ по делу", citations=[Citation(source="a.md", quote="x")]
+        )
+
+
+def test_judge_clamps_out_of_range_scores():
+    assert judge_faithfulness(_ScoreLLM(1.5), "ctx", "ans") == 1.0
+    assert judge_relevancy(_ScoreLLM(-0.3), "q", "ans") == 0.0
+    assert judge_faithfulness(_ScoreLLM(0.5), "ctx", "ans") == 0.5
+
+
+def test_evaluate_generation_scores_abstention_and_judges_answers():
+    golden = [
+        GoldenItem(question="как создать заказ?", relevant_sources=["a.md"], answerable=True),
+        GoldenItem(question="какая погода в Париже?", relevant_sources=[], answerable=False),
+    ]
+    report = evaluate_generation(
+        golden,
+        _FakeRetriever(["a.md"]),
+        gen_llm=_GenLLM(),
+        judge_llm=_ScoreLLM(1.0),
+        config="test",
+    )
+    # оба решения о воздержании верны: ответил на отвечаемый, воздержался на off-topic
+    assert report.abstention_accuracy == 1.0
+    assert report.n == 2
+    assert report.n_judged == 1  # судился только отвеченный отвечаемый
+    assert report.faithfulness == 1.0
+    assert report.answer_relevancy == 1.0
+
+
+def test_evaluate_generation_penalizes_hallucinated_answer_on_offtopic():
+    # генератор, который НЕ воздерживается на off-topic → abstention_accuracy падает
+    class _BadGen:
+        def structured_predict(self, output_cls, prompt, **kwargs):
+            return GroundedAnswer(answer="выдумка", abstained=False)
+
+    golden = [GoldenItem(question="какая погода?", relevant_sources=[], answerable=False)]
+    report = evaluate_generation(
+        golden, _FakeRetriever(["a.md"]), gen_llm=_BadGen(), judge_llm=_ScoreLLM(1.0), config="t"
+    )
+    assert report.abstention_accuracy == 0.0
 
 
 def test_evaluate_retrieval_aggregates_over_answerable_only():

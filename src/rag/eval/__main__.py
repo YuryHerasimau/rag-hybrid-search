@@ -14,8 +14,9 @@ import argparse
 
 from rich.console import Console
 
+from rag.config import settings
 from rag.eval.dataset import load_golden
-from rag.eval.harness import evaluate_retrieval
+from rag.eval.harness import evaluate_generation, evaluate_retrieval
 from rag.retrieval import build_retriever
 
 console = Console()
@@ -34,6 +35,19 @@ def main() -> None:
     parser.add_argument("--golden", default="deliveryservice.json", help="файл golden-набора")
     parser.add_argument("--top-k", type=int, default=5, help="k для метрик @k")
     parser.add_argument("--candidates", type=int, default=20, help="ширина кандидатов (hybrid/rerank)")
+    parser.add_argument(
+        "--generation",
+        action="store_true",
+        help="также прогнать generation-метрики (API: генерация + Haiku-судья)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=6, help="сколько вопросов для generation-eval (бюджет)"
+    )
+    parser.add_argument(
+        "--gen-model",
+        default=settings.cheap_model,
+        help="модель генерации для eval (по умолч. дешёвая Haiku; можно Sonnet)",
+    )
     args = parser.parse_args()
 
     golden = load_golden(args.golden)
@@ -50,6 +64,22 @@ def main() -> None:
     console.print("|---|---|---|---|---|", markup=False)
     for r in reports:
         console.print(r.row(), markup=False)
+
+    if args.generation:
+        from rag.generation.answer import build_llm
+
+        console.print(
+            f"\n[dim]Generation-eval (API): модель {args.gen_model}, судья {settings.cheap_model}, "
+            f"вопросов {args.limit}[/dim]"
+        )
+        retriever = build_retriever("hybrid", top_k=args.top_k, rerank=True, candidates=args.candidates)
+        gen_llm = build_llm(model=args.gen_model)
+        judge_llm = build_llm(model=settings.cheap_model)
+        gen = evaluate_generation(
+            golden, retriever, gen_llm, judge_llm, config="hybrid + rerank", limit=args.limit
+        )
+        # plain print с flush: rich при выводе в пайп иногда теряет финальную строку
+        print(gen.summary(), flush=True)
 
 
 if __name__ == "__main__":
