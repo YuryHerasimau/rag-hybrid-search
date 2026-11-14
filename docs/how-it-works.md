@@ -28,7 +28,9 @@ rag.retrieval — режимы поиска:
    • --rerank — cross-encoder bge-reranker-base: топ-20 → top_k [Фаза 3]
    │
    ▼
-rag.generation — Claude отвечает ТОЛЬКО по найденным чанкам (grounded-промпт)
+rag.generation — Claude отвечает ТОЛЬКО по найденным чанкам: структурный
+   ответ GroundedAnswer (answer + citations + abstained) через              [Фаза 5]
+   structured_predict; цитаты сверяются с найденными чанками
 ```
 
 CLI (всё через `uv run` — подхватывает окружение проекта; про грабли см. README):

@@ -110,8 +110,11 @@ uv run python -m rag.query "вопрос" --mode hybrid --rerank
   structure — нода на секцию с хлебными крошками заголовков. Русский стеммер
   (PyStemmer) для BM25 — матчит грамматические формы. Качественно structure
   чище simple; численный замер дельты — в Фазе 6.
-- [ ] **Фаза 5 — Мультимодальность + цитаты/abstention.** Caption PNG через
-  Claude vision; Pydantic-ответ с grounded-цитатами.
+- [~] **Фаза 5 — Цитаты/abstention + мультимодальность.** Сделано (A): Pydantic-ответ
+  `GroundedAnswer` (answer + citations + abstained) через `structured_predict`;
+  цитаты ссылаются на конкретные чанки и сверяются с найденными
+  (`unsupported_citations`); abstention на off-topic. Осталось (B): caption PNG
+  через Claude vision → текстовый узел.
 - [ ] **Фаза 6 — Evaluation harness + CI-гейт.** Генерация golden-set через
   Ragas testset generation → ручная чистка ~50–100 Q&A → версионирование в JSON.
   GitHub Actions: eval на подмножестве с Haiku-судьёй, порог регрессии.
