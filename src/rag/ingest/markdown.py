@@ -22,6 +22,18 @@ from rag.ingest.clean import clean_markup
 _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
+# Снятие inline-разметки с ТЕКСТА ЗАГОЛОВКА (для чистых хлебных крошек/цитат):
+# **жирный**/*курсив* и `код`. Подчёркивания не трогаем — частый тех-синтаксис
+# (payment_id), а тело секции не чистим вовсе.
+_EMPHASIS_RE = re.compile(r"\*{1,2}(.+?)\*{1,2}")
+_INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+
+
+def _strip_inline_md(title: str) -> str:
+    title = _EMPHASIS_RE.sub(r"\1", title)
+    title = _INLINE_CODE_RE.sub(r"\1", title)
+    return title.strip()
+
 
 @dataclass
 class WikiSection:
@@ -94,7 +106,7 @@ def _split_sections(body: str) -> list[WikiSection]:
         if m:
             flush()  # закрываем предыдущую секцию перед новым заголовком
             level = len(m.group(1))
-            title = m.group(2).strip()
+            title = _strip_inline_md(m.group(2).strip())
             # схлопываем стек до заголовков строго меньшего уровня
             while header_stack and header_stack[-1][0] >= level:
                 header_stack.pop()

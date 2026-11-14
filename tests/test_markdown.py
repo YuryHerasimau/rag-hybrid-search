@@ -39,6 +39,24 @@ def test_hash_inside_code_fence_is_not_a_header():
     assert doc.sections[0].header_path == ["Заголовок"]
 
 
+def test_header_emphasis_stripped_from_breadcrumb():
+    # ## **Описание** {#anchor} -> крошка «Описание» без markdown-жирности,
+    # при этом тело секции сохраняет свою разметку
+    raw = "# Корень\n\n## **Описание** {#opisanie}\n\nтекст **жирный** тут\n"
+    doc = parse_markdown(raw, "t.md")
+    crumbs = [s.breadcrumb for s in doc.sections]
+    assert "Корень > Описание" in crumbs
+    assert all("**" not in c for c in crumbs)
+    # тело не чистим — разметка остаётся
+    assert "**жирный**" in doc.text
+
+
+def test_underscores_in_header_preserved():
+    # подчёркивания в тех-терминах не должны съедаться
+    doc = parse_markdown("# Поле payment_id\n\nтело\n", "t.md")
+    assert doc.sections[0].header_path == ["Поле payment_id"]
+
+
 def test_utf8_content_preserved():
     doc = next(d for d in load_wiki(FIXTURES) if d.rel_path == "api/payments.md")
     # кириллица и английские поля API читаются корректно
