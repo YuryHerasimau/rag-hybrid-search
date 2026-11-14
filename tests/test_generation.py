@@ -117,3 +117,11 @@ def test_unsupported_citations_tolerates_appended_section():
         citations=[Citation(source="api/payments.md « Создание »", quote="a")],
     )
     assert unsupported_citations(result, nodes) == []
+
+
+def test_unsupported_citations_no_false_support_on_nested_path():
+    # выдан auth.md; цитата на НЕвыданный api-auth.md не должна «подтверждаться»
+    # по подстроке (startswith, а не substring)
+    nodes = [_node("auth.md", "текст")]
+    result = GroundedAnswer(answer="…", citations=[Citation(source="api-auth.md", quote="a")])
+    assert unsupported_citations(result, nodes) == ["api-auth.md"]

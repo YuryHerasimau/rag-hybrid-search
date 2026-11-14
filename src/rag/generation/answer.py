@@ -79,10 +79,12 @@ def unsupported_citations(
 
     Непустой список — сигнал галлюцинации источника: модель сослалась на то,
     чего ей не давали. Сверка устойчива к тому, что модель могла дописать к
-    пути секцию: достаточно, чтобы реальный rel_path входил в строку source.
+    пути секцию (source НАЧИНАЕТСЯ с реального rel_path). Используем startswith,
+    а не подстроку: иначе цитата на невыданный «api-auth.md» ложно засчиталась
+    бы по выданному «auth.md».
     """
     retrieved = {n.node.metadata.get("rel_path") for n in nodes if n.node.metadata.get("rel_path")}
-    return [c.source for c in result.citations if not any(rp in c.source for rp in retrieved)]
+    return [c.source for c in result.citations if not any(c.source.startswith(rp) for rp in retrieved)]
 
 
 def build_llm(model: str | None = None, max_tokens: int = 1024) -> Anthropic:

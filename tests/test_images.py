@@ -78,6 +78,30 @@ def test_caption_markdown_replaces_local_and_removes_external(tmp_path):
     assert "до" in out and "после" in out
 
 
+def test_caption_markdown_skips_image_when_captioner_fails(tmp_path):
+    files = tmp_path / ".files"
+    files.mkdir()
+    _make_png(files / "d.png")
+
+    def bad_captioner(_path):
+        raise RuntimeError("image too large")
+
+    out, n = caption_markdown("до ![d](.files/d.png =10x10) после", tmp_path, bad_captioner)
+    assert n == 0  # картинка не описана
+    assert "до" in out and "после" in out  # остальной текст цел
+    assert "[Изображение" not in out  # битую картинку не вставили
+
+
+def test_build_vision_captioner_requires_api_key(monkeypatch):
+    import pytest
+
+    from rag.ingest import images
+
+    monkeypatch.setattr(images.settings, "anthropic_api_key", "")
+    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+        images.build_vision_captioner()
+
+
 def test_load_wiki_injects_captions_into_text(tmp_path):
     files = tmp_path / ".files"
     files.mkdir()

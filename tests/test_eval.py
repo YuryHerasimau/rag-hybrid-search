@@ -4,7 +4,7 @@ from llama_index.core.schema import NodeWithScore, TextNode
 
 from rag.eval.dataset import GOLDEN_DIR, GoldenItem, load_golden
 from rag.eval.gate import check_gate
-from rag.eval.harness import evaluate_generation, evaluate_retrieval
+from rag.eval.harness import _representative_subset, evaluate_generation, evaluate_retrieval
 from rag.eval.judge import JudgeScore, judge_faithfulness, judge_relevancy
 from rag.eval.metrics import (
     dedup_preserve_order,
@@ -170,6 +170,30 @@ def test_gate_skips_section_when_metrics_not_provided():
     # без generation-метрик секция generation не проверяется (напр. CI без ключа)
     res = check_gate(_BASELINE, retrieval={"hit_at_k": 1.0, "mrr": 0.95}, generation=None)
     assert res.passed
+
+
+def test_gate_flags_threshold_key_without_min_prefix():
+    # опечатка (hit_at_k вместо min_hit_at_k) не должна молча отключать порог
+    baseline = {"retrieval": {"hit_at_k": 0.9}}
+    res = check_gate(baseline, retrieval={"hit_at_k": 1.0})
+    assert not res.passed
+    assert any("неизвестный ключ" in f for f in res.failures)
+
+
+def test_representative_subset_includes_offtopic_within_limit():
+    golden = [
+        GoldenItem(question=f"q{i}", relevant_sources=["x.md"], answerable=True) for i in range(6)
+    ]
+    golden.append(GoldenItem(question="off", relevant_sources=[], answerable=False))
+    sub = _representative_subset(golden, limit=3)
+    assert len(sub) == 3
+    assert any(not g.answerable for g in sub)  # off-topic гарантированно в выборке
+
+
+def test_representative_subset_returns_all_when_no_limit():
+    golden = [GoldenItem(question="q", relevant_sources=["x.md"], answerable=True)]
+    assert _representative_subset(golden, None) is golden
+    assert _representative_subset(golden, 99) is golden
 
 
 def test_evaluate_retrieval_aggregates_over_answerable_only():

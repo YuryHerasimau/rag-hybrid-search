@@ -101,6 +101,15 @@ class GenerationReport:
         }
 
 
+def _representative_subset(golden: list[GoldenItem], limit: int | None) -> list[GoldenItem]:
+    """Подмножество из limit вопросов с гарантией попадания off-topic (abstention)."""
+    if limit is None or limit >= len(golden):
+        return golden
+    off = [g for g in golden if not g.answerable]
+    ans = [g for g in golden if g.answerable]
+    return (off + ans)[:limit]
+
+
 def evaluate_generation(
     golden: list[GoldenItem],
     retriever,
@@ -115,8 +124,12 @@ def evaluate_generation(
       разметкой answerable (ключевая анти-галлюцинационная метрика);
     - faithfulness / answer_relevancy — судьёй, только по отвеченным отвечаемым
       вопросам (на воздержании оценивать нечего).
+
+    limit ограничивает число вопросов (бюджет), но выборка ПРЕДСТАВИТЕЛЬНА:
+    off-topic (их мало, но они критичны для проверки abstention) идут первыми,
+    иначе простой префикс golden[:limit] их бы не захватил.
     """
-    items = golden[:limit] if limit else golden
+    items = _representative_subset(golden, limit)
     abst_correct = 0
     faith_sum = rel_sum = 0.0
     judged = 0

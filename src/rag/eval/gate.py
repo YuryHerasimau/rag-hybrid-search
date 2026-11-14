@@ -30,6 +30,9 @@ def _check(metrics: dict[str, float], thresholds: dict[str, float], section: str
     failures: list[str] = []
     for key, floor in thresholds.items():
         if not key.startswith("min_"):
+            # не молчим: опечатка (hit_at_k вместо min_hit_at_k) иначе отключила бы
+            # порог незаметно, и гейт был бы зелёным при регрессии
+            failures.append(f"{section}: неизвестный ключ порога {key!r} (ожидается min_<метрика>)")
             continue
         name = key[len("min_") :]
         value = metrics.get(name)

@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -129,7 +130,13 @@ def caption_markdown(
         if path and not path.startswith(("http://", "https://", "data:")):
             cand = (base_dir / path).resolve()
             if cand.is_file() and cand.suffix.lower() in _MEDIA_TYPES:
-                caption = caption_image(cand, captioner, cache)
+                try:
+                    caption = caption_image(cand, captioner, cache)
+                except Exception as exc:  # noqa: BLE001 — любой сбой по одной
+                    # картинке (vision-API, размер, битый файл) не должен ронять
+                    # инжест всего корпуса; пропускаем и идём дальше
+                    print(f"[captions] пропуск {cand.name}: {exc}", file=sys.stderr)
+                    return ""
                 count += 1
                 return f"[Изображение: {caption}]"
         return ""  # внешняя ссылка или нет файла — убираем шум
@@ -141,6 +148,11 @@ def build_vision_captioner(model: str | None = None):
     """Фабрика реального captioner'а на Claude vision (Haiku по умолчанию)."""
     import anthropic
 
+    if not settings.anthropic_api_key:
+        raise RuntimeError(
+            "Не задан ANTHROPIC_API_KEY — он нужен для --captions (описание картинок). "
+            "Впиши ключ в .env или собирай индекс без --captions."
+        )
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     model = model or settings.cheap_model
 

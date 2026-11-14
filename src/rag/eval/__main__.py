@@ -76,20 +76,32 @@ def main() -> None:
         console.print(r.row(), markup=False)
 
     if args.generation:
-        from rag.generation.answer import build_llm
-
         console.print(
             f"\n[dim]Generation-eval (API): модель {args.gen_model}, судья {settings.cheap_model}, "
             f"вопросов {args.limit}[/dim]"
         )
-        retriever = build_retriever("hybrid", top_k=args.top_k, rerank=True, candidates=args.candidates)
-        gen_llm = build_llm(model=args.gen_model)
-        judge_llm = build_llm(model=settings.cheap_model)
-        gen = evaluate_generation(
-            golden, retriever, gen_llm, judge_llm, config="hybrid + rerank", limit=args.limit
-        )
         # plain print с flush: rich при выводе в пайп иногда теряет финальную строку
-        print(gen.summary(), flush=True)
+        print(_generation_report(golden, _gate_retriever(args), args).summary(), flush=True)
+
+
+# Гейт-конфиг retrieval+rerank — единый для гейта и generation-eval.
+_GATE_MODE, _GATE_RERANK = "hybrid", True
+_GATE_CONFIG = "hybrid + rerank"
+
+
+def _gate_retriever(args):
+    return build_retriever(_GATE_MODE, top_k=args.top_k, rerank=_GATE_RERANK, candidates=args.candidates)
+
+
+def _generation_report(golden, retriever, args):
+    """Собирает LLM-судью и прогоняет generation-метрики (общее для --generation и гейта)."""
+    from rag.generation.answer import build_llm
+
+    gen_llm = build_llm(model=args.gen_model)
+    judge_llm = build_llm(model=settings.cheap_model)
+    return evaluate_generation(
+        golden, retriever, gen_llm, judge_llm, config=_GATE_CONFIG, limit=args.limit
+    )
 
 
 def _run_gate(golden, args) -> None:
@@ -102,19 +114,13 @@ def _run_gate(golden, args) -> None:
     from rag.eval.gate import check_gate, load_baseline
 
     baseline = load_baseline()
-    retriever = build_retriever("hybrid", top_k=args.top_k, rerank=True, candidates=args.candidates)
-    rr = evaluate_retrieval(golden, retriever, config="hybrid + rerank", k=args.top_k)
+    retriever = _gate_retriever(args)
+    rr = evaluate_retrieval(golden, retriever, config=_GATE_CONFIG, k=args.top_k)
     print("RETRIEVAL:", rr.row(), flush=True)
 
     gen_metrics = None
     if args.generation:
-        from rag.generation.answer import build_llm
-
-        gen_llm = build_llm(model=args.gen_model)
-        judge_llm = build_llm(model=settings.cheap_model)
-        gr = evaluate_generation(
-            golden, retriever, gen_llm, judge_llm, config="hybrid + rerank", limit=args.limit
-        )
+        gr = _generation_report(golden, retriever, args)
         gen_metrics = gr.metrics()
         print("GENERATION:", gr.summary(), flush=True)
 
