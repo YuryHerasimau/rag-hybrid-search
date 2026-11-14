@@ -1,0 +1,86 @@
+[
+  {
+    "question": "Как авторизоваться для интеграции?",
+    "relevant_sources": [
+      "1f5aad86f084/avtorizacija-dlja-integracijj.md",
+      "1f5aad86f084/avtorizacija-dlja-integracijj/avtorizacija-dlja-integracijj-v2.md"
+    ],
+    "ground_truth": "Методом POST /login/integration/logistician с передачей logistician_id и integration_key.",
+    "answerable": true
+  },
+  {
+    "question": "Как авторизоваться курьеру?",
+    "relevant_sources": ["1f5aad86f084/avtorizacija-kurera.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как войти по email и паролю?",
+    "relevant_sources": ["1f5aad86f084/vxod-po-email-i-parolju.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как отправить код подтверждения на номер телефона?",
+    "relevant_sources": ["1f5aad86f084/otpravka-koda-na-nomer-telefona.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как подтвердить номер телефона с помощью кода?",
+    "relevant_sources": ["1f5aad86f084/podtverzhdenie-nomera-telefon-s-pomoshhju-koda.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как создать нового логиста в админке?",
+    "relevant_sources": ["adminka/novyjj-logist.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как создать нового курьера в админке?",
+    "relevant_sources": ["adminka/novyjj-kurer.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как создать новый пункт выдачи?",
+    "relevant_sources": ["adminka/punkt-vydachi/novyjj-punkt-vydachi.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как сгенерировать QR-код для check-in курьера?",
+    "relevant_sources": ["adminka/generacija-qr-koda-dlja-check-in-kurera.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как настроить часовые пояса пункта выдачи?",
+    "relevant_sources": ["adminka/punkt-vydachi/chasovye-pojasa.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как создать схему начислений и выплат?",
+    "relevant_sources": ["adminka/nachislenija-i-vyplaty/sozdanie-sxemy.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как включить офлайн-режим в пункте выдачи?",
+    "relevant_sources": ["adminka/punkt-vydachi/vkljuchenie-offline-rezhima.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как создать новый заказ?",
+    "relevant_sources": ["adminka/novyjj-zakaz.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как включить автоназначение?",
+    "relevant_sources": ["adminka/punkt-vydachi/vkljuchenie-avtonaznachenija.md"],
+    "answerable": true
+  },
+  {
+    "question": "Какая сегодня погода в Париже?",
+    "relevant_sources": [],
+    "answerable": false
+  },
+  {
+    "question": "Сколько стоит подписка на Netflix?",
+    "relevant_sources": [],
+    "answerable": false
+  }
+]

@@ -115,17 +115,42 @@ uv run python -m rag.query "вопрос" --mode hybrid --rerank
   цитаты ссылаются на конкретные чанки и сверяются с найденными
   (`unsupported_citations`); abstention на off-topic. Осталось (B): caption PNG
   через Claude vision → текстовый узел.
-- [ ] **Фаза 6 — Evaluation harness + CI-гейт.** Генерация golden-set через
-  Ragas testset generation → ручная чистка ~50–100 Q&A → версионирование в JSON.
-  GitHub Actions: eval на подмножестве с Haiku-судьёй, порог регрессии.
+- [~] **Фаза 6 — Evaluation harness + CI-гейт.** Сделано (Шаг 1): golden-набор
+  (`eval/golden/`), детерминированные retrieval-метрики (hit@k/MRR/recall@k/
+  precision@k, реализованы явно, **без API**), ablation-раннер
+  `rag.eval` — первые числа уже есть (ниже). Осталось: generation-метрики через
+  Haiku-судью (Шаг 2) и CI-гейт на GitHub Actions (Шаг 3).
 - [ ] **Фаза 7 (опц.) — API/UI + router.** FastAPI + Streamlit; query router и
   text-to-SQL как «фаза 2 источников».
 
 ## Ablation study
 
-Главный артефакт проекта — таблица заполняется в Фазе 6, когда появится
-golden-набор и eval-харнесс: каждая конфигурация retrieval (это флаги в коде)
-прогоняется через Ragas, и мы видим изолированный вклад каждого приёма.
+Главный артефакт проекта — изолированный вклад каждого приёма в числах.
+
+### Retrieval-метрики (Шаг 1, без API)
+
+Детерминированная оценка поиска по golden-набору (`rag.eval`): нашёлся ли нужный
+документ и на какой позиции. Прогон на срезе `api/deliveryservice` (77 файлов),
+чанкинг `structure`, 14 размеченных вопросов, k=5.
+
+| Конфигурация | hit@5 | MRR | recall@5 | precision@5 |
+|---|---|---|---|---|
+| dense | 0.86 | **0.77** | 0.86 | 0.56 |
+| bm25 | 0.71 | 0.63 | 0.68 | 0.35 |
+| hybrid (BM25 + RRF) | 0.86 | 0.72 | 0.82 | 0.45 |
+| hybrid + reranker | **0.93** | **0.80** | **0.93** | **0.68** |
+
+Что видно: **reranker выигрывает по всем метрикам**; bm25 в одиночку слабее всех;
+**hybrid по MRR/precision чуть хуже dense** (RRF-консенсус размывает точность
+dense, когда bm25 не согласен) — и именно reranker поверх это исправляет.
+
+> Воспроизвести: `uv run python -m rag.index build --path <срез> --chunking structure`
+> затем `uv run python -m rag.eval --golden deliveryservice.json`.
+
+### Generation-метрики (Шаг 2, Ragas/Haiku — в работе)
+
+Faithfulness и answer_relevancy оценивают уже сам ответ (прокси галлюцинаций);
+считаются через LLM-судью, заполняются после Шага 2.
 
 | Конфигурация | faithfulness | answer_relevancy | context_precision | context_recall |
 |---|---|---|---|---|
