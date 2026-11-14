@@ -13,10 +13,16 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from rag.config import settings
 
 
-def build_embed_model(model_name: str | None = None) -> HuggingFaceEmbedding:
-    name = model_name or settings.embedding_model
+def _embed_kwargs(name: str) -> dict:
+    """Аргументы для HuggingFaceEmbedding. Вынесено отдельно — чистая логика
+    (в т.ч. e5-префиксы) тестируется без загрузки тяжёлой модели."""
     kwargs: dict = {"model_name": name, "device": "cpu"}
     if "e5" in name.lower():
         kwargs["query_instruction"] = "query: "
         kwargs["text_instruction"] = "passage: "
-    return HuggingFaceEmbedding(**kwargs)
+    return kwargs
+
+
+def build_embed_model(model_name: str | None = None) -> HuggingFaceEmbedding:
+    name = model_name or settings.embedding_model
+    return HuggingFaceEmbedding(**_embed_kwargs(name))

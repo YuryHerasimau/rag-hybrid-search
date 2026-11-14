@@ -17,10 +17,9 @@ from pathlib import Path
 
 import yaml
 
-from rag.ingest.clean import clean_markup
+from rag.ingest.clean import _FENCE_RE, clean_markup  # _FENCE_RE общий — не дублируем
 
 _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-_FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
 # Снятие inline-разметки с ТЕКСТА ЗАГОЛОВКА (для чистых хлебных крошек/цитат):
 # **жирный**/*курсив* и `код`. Подчёркивания не трогаем — частый тех-синтаксис

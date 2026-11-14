@@ -1,9 +1,9 @@
 """CLI инжеста: загрузить вики и показать сводку по документам и секциям.
 
 Примеры:
-    python -m rag.ingest                         # каталог из настроек (data/raw)
-    python -m rag.ingest --path tests/fixtures/wiki
-    python -m rag.ingest --path data/raw --show-sections
+    uv run python -m rag.ingest                         # каталог из настроек (data/raw)
+    uv run python -m rag.ingest --path tests/fixtures/wiki
+    uv run python -m rag.ingest --path data/raw --show-sections
 """
 
 from __future__ import annotations

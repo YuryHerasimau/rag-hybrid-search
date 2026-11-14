@@ -17,6 +17,9 @@ from llama_index.core.schema import NodeWithScore, QueryBundle
 from rag.config import settings
 from rag.index import load_index, load_nodes
 
+# Единый источник правды по режимам поиска (используется и в CLI --mode).
+RETRIEVAL_MODES = ("dense", "bm25", "hybrid")
+
 # --- dense (Фаза 1) -----------------------------------------------------------
 
 
@@ -129,14 +132,15 @@ class RerankedRetriever(BaseRetriever):
 # --- диспетчер + форматирование ----------------------------------------------
 
 
-def _base_retriever(mode: str, k: int) -> BaseRetriever:
+def _base_retriever(mode: str, top_k: int, candidates: int = 20) -> BaseRetriever:
     if mode == "dense":
-        return build_dense_retriever(top_k=k)
+        return build_dense_retriever(top_k=top_k)
     if mode == "bm25":
-        return build_bm25_retriever(top_k=k)
+        return build_bm25_retriever(top_k=top_k)
     if mode == "hybrid":
-        return build_hybrid_retriever(top_k=k)
-    raise ValueError(f"Неизвестный режим retrieval: {mode!r} (dense|bm25|hybrid)")
+        # candidates — ширина fan-out суб-ретриверов до RRF (не хардкод 20)
+        return build_hybrid_retriever(top_k=top_k, candidates=candidates)
+    raise ValueError(f"Неизвестный режим retrieval: {mode!r} ({'|'.join(RETRIEVAL_MODES)})")
 
 
 def build_retriever(
@@ -148,8 +152,8 @@ def build_retriever(
     """Собирает retriever. С rerank=True: базовый достаёт `candidates`
     кандидатов, cross-encoder оставляет top_k наиболее релевантных."""
     if not rerank:
-        return _base_retriever(mode, top_k)
-    base = _base_retriever(mode, candidates)
+        return _base_retriever(mode, top_k, candidates)
+    base = _base_retriever(mode, candidates, candidates)
     return RerankedRetriever(base, build_reranker(top_n=top_k))
 
 

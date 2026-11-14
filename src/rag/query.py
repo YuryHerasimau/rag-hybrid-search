@@ -2,13 +2,13 @@
 
 Примеры:
     # только retrieval (без API-ключа) — посмотреть, что находится:
-    python -m rag.query "как создать платёж?" --retrieve-only
+    uv run python -m rag.query "как создать платёж?" --retrieve-only
 
     # полный ответ через Claude (нужен ANTHROPIC_API_KEY в .env):
-    python -m rag.query "как создать платёж?"
+    uv run python -m rag.query "как создать платёж?"
 
     # гибрид + reranker (Фаза 3), только retrieval:
-    python -m rag.query "как создать платёж?" --mode hybrid --rerank --retrieve-only
+    uv run python -m rag.query "как создать платёж?" --mode hybrid --rerank --retrieve-only
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import argparse
 
 from rich.console import Console
 
-from rag.retrieval import build_retriever, format_source
+from rag.retrieval import RETRIEVAL_MODES, build_retriever, format_source
 
 console = Console()
 
@@ -28,7 +28,7 @@ def main() -> None:
     parser.add_argument("--top-k", type=int, default=5, help="сколько чанков доставать")
     parser.add_argument(
         "--mode",
-        choices=["dense", "bm25", "hybrid"],
+        choices=RETRIEVAL_MODES,
         default="hybrid",
         help="режим поиска: dense (Фаза 1), bm25 (лексический), hybrid (RRF, по умолч.)",
     )
@@ -70,8 +70,8 @@ def main() -> None:
         return
 
     # Полный ответ через Claude
-    from llama_index.core.query_engine import RetrieverQueryEngine
     from llama_index.core import get_response_synthesizer
+    from llama_index.core.query_engine import RetrieverQueryEngine
 
     from rag.generation.answer import QA_PROMPT, build_llm
 
