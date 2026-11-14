@@ -62,3 +62,24 @@ def test_utf8_content_preserved():
     # кириллица и английские поля API читаются корректно
     assert "currency" in doc.text
     assert "минорных единицах" in doc.text
+
+
+def test_malformed_frontmatter_yaml_is_ignored_not_crashes():
+    # битый YAML во фронтматтере → пустой frontmatter, инжест не падает
+    doc = parse_markdown("---\nfoo: [unclosed\n---\n# Заголовок\n\nтело\n", "t.md")
+    assert doc.frontmatter == {}
+    assert doc.title == "Заголовок"  # фолбэк на первый H1
+
+
+def test_frontmatter_without_closing_treated_as_body():
+    # нет второго --- → фронтматтер не выделяется, заголовок из первого H1
+    doc = parse_markdown("---\ntitle: X\n# Настоящий заголовок\n\nтекст\n", "t.md")
+    assert doc.frontmatter == {}
+    assert doc.title == "Настоящий заголовок"
+
+
+def test_load_wiki_skips_empty_documents(tmp_path):
+    (tmp_path / "empty.md").write_text("   \n\n  \n", encoding="utf-8")
+    (tmp_path / "real.md").write_text("# H\n\nтекст\n", encoding="utf-8")
+    docs = load_wiki(tmp_path)
+    assert {d.rel_path for d in docs} == {"real.md"}

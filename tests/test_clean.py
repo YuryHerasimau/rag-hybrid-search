@@ -84,3 +84,21 @@ def test_parse_markdown_applies_cleaning():
     doc = parse_markdown(_TABLE, "t.md")
     assert "||" not in doc.text
     assert "Статус: **PRODUCTION**" in doc.text
+
+
+def test_table_single_column_kept_as_text():
+    out = clean_markup("#|\n||\n\nЕдинственная ячейка\n\n||\n|#\n")
+    assert "Единственная ячейка" in out
+    assert "#|" not in out and "|#" not in out
+
+
+def test_unclosed_table_does_not_crash_and_renders():
+    # битая таблица без закрывающего |# — не падаем, ряд всё равно разворачиваем
+    out = clean_markup("#|\n||\n\nСтатус\n\n|\n\nOK\n\n||\n")
+    assert "Статус: OK" in out
+
+
+def test_empty_table_produces_no_garbage():
+    out = clean_markup("до\n\n#|\n|#\n\nпосле")
+    assert "до" in out and "после" in out
+    assert "#|" not in out and "|#" not in out

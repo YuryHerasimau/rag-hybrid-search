@@ -128,3 +128,53 @@ def test_reranked_retriever_delegates_to_base_then_reranker():
     ids = [n.node.node_id for n in result]
     # базовый отдал A,B,C; reranker развернул → C,B,A и обрезал до 2
     assert ids == ["C", "B"]
+
+
+def test_format_source_plain_score():
+    from rag.retrieval import format_source
+
+    nws = NodeWithScore(
+        node=TextNode(text="x", metadata={"rel_path": "a.md", "title": "Док"}), score=0.5
+    )
+    s = format_source(nws)
+    assert "[0.500]" in s and "a.md" in s and "Док" in s
+
+
+def test_format_source_shows_both_scores_after_rerank():
+    from rag.retrieval import format_source
+
+    # reranker кладёт исходный скор в retrieval_score → в выводе оба
+    nws = NodeWithScore(
+        node=TextNode(
+            text="x",
+            metadata={"rel_path": "a.md", "title": "Док", "retrieval_score": 0.9},
+        ),
+        score=0.42,
+    )
+    s = format_source(nws)
+    assert "rerank 0.420" in s and "retr 0.900" in s
+
+
+def test_build_retriever_rejects_unknown_mode():
+    import pytest
+
+    from rag.retrieval import build_retriever
+
+    with pytest.raises(ValueError):
+        build_retriever("magic", top_k=3)  # падает в диспетчере, индекс не нужен
+
+
+def test_build_retriever_threads_candidates_into_hybrid(monkeypatch):
+    # регрессия ревью: --candidates должен задавать fan-out суб-ретриверов hybrid,
+    # а не молча игнорироваться (раньше был жёсткий хардкод 20).
+    import rag.retrieval as retr
+
+    seen = {}
+    monkeypatch.setattr(
+        retr, "build_dense_retriever", lambda top_k: seen.update(dense=top_k) or _FakeRetriever([])
+    )
+    monkeypatch.setattr(
+        retr, "build_bm25_retriever", lambda top_k: seen.update(bm25=top_k) or _FakeRetriever([])
+    )
+    retr.build_retriever("hybrid", top_k=5, candidates=37)
+    assert seen == {"dense": 37, "bm25": 37}
