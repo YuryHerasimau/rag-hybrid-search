@@ -1,8 +1,11 @@
 name: eval-gate
 
-# CI-гейт качества (Фаза 6): линт, тесты, затем eval на СИНТЕТИЧЕСКОМ корпусе
-# (eval/corpus — коммитится; реальная вики в репозиторий не попадает).
-# Retrieval-гейт всегда (без API); generation-гейт — только если задан секрет
+# CI качества (Фаза 6), два job'а:
+#   lint-test — дешёвые статические проверки (ruff + pytest), без моделей;
+#   eval-gate — eval на СИНТЕТИЧЕСКОМ корпусе eval/corpus (реальная вики не в репо),
+#               запускается только если lint-test зелёный (needs) — не тратим
+#               скачивание моделей и API на заведомо битом коде.
+# Retrieval-гейт всегда (без API); generation-гейт — только при секрете
 # ANTHROPIC_API_KEY.
 
 on:
@@ -15,7 +18,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  gate:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python 3.10
+        run: uv python install 3.10
+
+      - name: Install dependencies
+        run: uv sync --group phase1 --group phase2 --group dev
+
+      - name: Lint (ruff)
+        run: uv run ruff check src tests
+
+      - name: Unit tests
+        run: uv run pytest -q
+
+  eval-gate:
+    needs: lint-test
     runs-on: ubuntu-latest
     # Секрет нельзя читать в if:-шага напрямую — прокидываем в env на уровне job,
     # а шаг проверяет уже env.ANTHROPIC_API_KEY
@@ -31,7 +55,7 @@ jobs:
         run: uv python install 3.10
 
       - name: Install dependencies
-        run: uv sync --group phase1 --group phase2 --group dev
+        run: uv sync --group phase1 --group phase2
 
       # Веса моделей (e5 + bge-reranker) тяжёлые — кэшируем между прогонами
       - name: Cache HuggingFace models
@@ -39,12 +63,6 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: hf-${{ runner.os }}-e5small-bgereranker-v1
-
-      - name: Lint (ruff)
-        run: uv run ruff check src tests
-
-      - name: Unit tests
-        run: uv run pytest -q
 
       - name: Build eval index (synthetic corpus)
         run: uv run python -m rag.index build --path eval/corpus --chunking structure
