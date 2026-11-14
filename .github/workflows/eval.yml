@@ -17,6 +17,10 @@ concurrency:
 jobs:
   gate:
     runs-on: ubuntu-latest
+    # Секрет нельзя читать в if:-шага напрямую — прокидываем в env на уровне job,
+    # а шаг проверяет уже env.ANTHROPIC_API_KEY
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -49,7 +53,5 @@ jobs:
         run: uv run python -m rag.eval --golden synthetic.json --gate
 
       - name: Generation gate (needs ANTHROPIC_API_KEY secret)
-        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: uv run python -m rag.eval --golden synthetic.json --gate --generation --limit 18
