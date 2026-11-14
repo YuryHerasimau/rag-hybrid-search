@@ -15,12 +15,14 @@ data/
 Положи выгрузку своей вики в `data/raw/`, а картинки — в `data/images/`, затем:
 
 ```bash
-python -m rag.ingest --show-sections
+uv run python -m rag.ingest --show-sections
 ```
 
 Для проверки без реальных данных есть готовый пример в
 [`tests/fixtures/wiki`](../tests/fixtures/wiki):
 
 ```bash
-python -m rag.ingest --path tests/fixtures/wiki --show-sections
+uv run python -m rag.ingest --path tests/fixtures/wiki --show-sections
 ```
+
+> Все команды — через `uv run`. Полный справочник — [docs/how-it-works.md](../docs/how-it-works.md).

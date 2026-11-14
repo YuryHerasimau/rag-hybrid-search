@@ -30,13 +30,13 @@ rag.retrieval — режимы поиска:
 rag.generation — Claude отвечает ТОЛЬКО по найденным чанкам (grounded-промпт)
 ```
 
-CLI:
-- `python -m rag.ingest --path <dir> --show-sections` — посмотреть, как парсятся страницы
-- `python -m rag.index build --path <dir>` — собрать/пересобрать индекс (Qdrant + docstore)
-- `python -m rag.query "вопрос" --retrieve-only` — только поиск (без API-ключа)
-- `python -m rag.query "вопрос" --mode dense|bm25|hybrid` — выбрать режим поиска (по умолч. hybrid)
-- `python -m rag.query "вопрос" --rerank` — добавить cross-encoder reranker (Фаза 3)
-- `python -m rag.query "вопрос"` — полный ответ через Claude (нужен ключ в .env)
+CLI (всё через `uv run` — подхватывает окружение проекта; про грабли см. README):
+- `uv run python -m rag.ingest --path <dir> --show-sections` — посмотреть, как парсятся страницы
+- `uv run python -m rag.index build --path <dir>` — собрать/пересобрать индекс (Qdrant + docstore)
+- `uv run python -m rag.query "вопрос" --retrieve-only` — только поиск (без API-ключа)
+- `uv run python -m rag.query "вопрос" --mode dense|bm25|hybrid` — выбрать режим поиска (по умолч. hybrid)
+- `uv run python -m rag.query "вопрос" --rerank` — добавить cross-encoder reranker (Фаза 3)
+- `uv run python -m rag.query "вопрос"` — полный ответ через Claude (нужен ключ в .env)
 
 > **RRF (Reciprocal Rank Fusion):** у BM25 и косинуса несопоставимые шкалы скоров,
 > поэтому складываем не скоры, а РАНГИ: `score(doc) = Σ 1/(k + rank)` (k=60).

@@ -60,6 +60,27 @@ API и техтерминов на английском → нужны **мул�
 
 ---
 
+## Быстрый старт
+
+Проект на [uv](https://docs.astral.sh/uv/). **Все команды — через `uv run`** (сам
+подхватывает `.venv`; venv вручную создавать/активировать не нужно).
+
+> ⚠️ Грабли: `uv python -m …` — это не запуск (у `uv python` своя задача: управление
+> установками Python); голый `python -m rag.ingest` берёт системный Python →
+> `No module named 'rag'`. Правильно — `uv run python -m …`.
+
+```bash
+uv sync --group phase1 --group phase2                      # зависимости (текущая фаза)
+cp .env.example .env                                       # вписать ANTHROPIC_API_KEY (не подписка Pro)
+uv run python -m rag.ingest --path tests/fixtures/wiki     # инжест на фикстурах
+uv run python -m rag.query "вопрос" --mode hybrid --rerank
+```
+
+Установка по шагам — [docs/setup.md](docs/setup.md); полный список команд и устройство
+пайплайна — [docs/how-it-works.md](docs/how-it-works.md).
+
+---
+
 ## План реализации и прогресс
 
 Легенда: `[ ]` не начато · `[~]` в работе · `[x]` готово
@@ -109,8 +130,9 @@ golden-набор и eval-харнесс: каждая конфигурация 
 
 ## Документация
 
-- [docs/architecture.md](docs/architecture.md) — архитектура и обоснование решений
+- [docs/how-it-works.md](docs/how-it-works.md) — карта пайплайна, полный справочник CLI, артефакты на диске
 - [docs/setup.md](docs/setup.md) — установка и запуск локально
+- [docs/architecture.md](docs/architecture.md) — архитектура и обоснование решений
 - [docs/evaluation.md](docs/evaluation.md) — методология оценки и CI-гейт
 
 ## Структура репозитория (целевая)
