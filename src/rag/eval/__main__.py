@@ -80,32 +80,35 @@ def main() -> None:
             f"\n[dim]Generation-eval (API): модель {args.gen_model}, судья {settings.cheap_model}, "
             f"вопросов {args.limit}[/dim]"
         )
+        # ad-hoc прогон (не гейт) — дефолтный hybrid+rerank
+        label = _config_label("hybrid", True)
+        retriever = _build_eval_retriever("hybrid", True, args)
         # plain print с flush: rich при выводе в пайп иногда теряет финальную строку
-        print(_generation_report(golden, _gate_retriever(args), args).summary(), flush=True)
+        print(_generation_report(golden, retriever, label, args).summary(), flush=True)
 
 
-# Гейт-конфиг retrieval+rerank — единый для гейта и generation-eval.
-_GATE_MODE, _GATE_RERANK = "hybrid", True
-_GATE_CONFIG = "hybrid + rerank"
+_DEFAULT_GATE_CONFIG = {"mode": "hybrid", "rerank": True}
 
 
-def _gate_retriever(args):
-    return build_retriever(_GATE_MODE, top_k=args.top_k, rerank=_GATE_RERANK, candidates=args.candidates)
+def _config_label(mode: str, rerank: bool) -> str:
+    return f"{mode}{' + rerank' if rerank else ''}"
 
 
-def _generation_report(golden, retriever, args):
+def _build_eval_retriever(mode: str, rerank: bool, args):
+    return build_retriever(mode, top_k=args.top_k, rerank=rerank, candidates=args.candidates)
+
+
+def _generation_report(golden, retriever, label: str, args):
     """Собирает LLM-судью и прогоняет generation-метрики (общее для --generation и гейта)."""
     from rag.generation.answer import build_llm
 
     gen_llm = build_llm(model=args.gen_model)
     judge_llm = build_llm(model=settings.cheap_model)
-    return evaluate_generation(
-        golden, retriever, gen_llm, judge_llm, config=_GATE_CONFIG, limit=args.limit
-    )
+    return evaluate_generation(golden, retriever, gen_llm, judge_llm, config=label, limit=args.limit)
 
 
 def _run_gate(golden, args) -> None:
-    """Прогоняет гейт-конфиг (hybrid+rerank) и сверяет с порогами baseline.
+    """Сверяет метрики с порогами baseline; конфиг ретрива берётся ИЗ baseline.
 
     Retrieval-метрики — всегда (без API). Generation-метрики — только с
     --generation (нужен ключ). exit 1 при любой регрессии."""
@@ -114,13 +117,16 @@ def _run_gate(golden, args) -> None:
     from rag.eval.gate import check_gate, load_baseline
 
     baseline = load_baseline()
-    retriever = _gate_retriever(args)
-    rr = evaluate_retrieval(golden, retriever, config=_GATE_CONFIG, k=args.top_k)
+    cfg = baseline.get("gate_config", _DEFAULT_GATE_CONFIG)
+    mode, rerank = cfg["mode"], cfg["rerank"]
+    label = _config_label(mode, rerank)
+    retriever = _build_eval_retriever(mode, rerank, args)
+    rr = evaluate_retrieval(golden, retriever, config=label, k=args.top_k)
     print("RETRIEVAL:", rr.row(), flush=True)
 
     gen_metrics = None
     if args.generation:
-        gr = _generation_report(golden, retriever, args)
+        gr = _generation_report(golden, retriever, label, args)
         gen_metrics = gr.metrics()
         print("GENERATION:", gr.summary(), flush=True)
 

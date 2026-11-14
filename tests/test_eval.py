@@ -196,6 +196,22 @@ def test_representative_subset_returns_all_when_no_limit():
     assert _representative_subset(golden, 99) is golden
 
 
+def test_config_label_formats_mode_and_rerank():
+    from rag.eval.__main__ import _config_label
+
+    assert _config_label("hybrid", True) == "hybrid + rerank"
+    assert _config_label("dense", False) == "dense"
+
+
+def test_baseline_gate_config_is_structured():
+    # gate_config теперь читается кодом (не декоративное поле) — проверяем формат
+    from rag.eval.gate import load_baseline
+
+    cfg = load_baseline()["gate_config"]
+    assert cfg["mode"] in {"dense", "bm25", "hybrid"}
+    assert isinstance(cfg["rerank"], bool)
+
+
 def test_evaluate_retrieval_aggregates_over_answerable_only():
     golden = [
         GoldenItem(question="q1", relevant_sources=["a.md"], answerable=True),

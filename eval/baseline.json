@@ -3,7 +3,7 @@
   "corpus": "eval/corpus",
   "golden": "synthetic.json",
   "chunking": "structure",
-  "gate_config": "hybrid + rerank",
+  "gate_config": { "mode": "hybrid", "rerank": true },
   "retrieval": {
     "min_hit_at_k": 0.90,
     "min_mrr": 0.85,
