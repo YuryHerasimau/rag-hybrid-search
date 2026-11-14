@@ -10,6 +10,7 @@
 flowchart TD
     MD["📄 .md файлы (data/raw)"]
     MD -->|"load_wiki: парсинг, фронтматтер, header_path"| CLEAN["clean: чистка разметки Yandex Wiki #91;Ф4#93;"]
+    IMG["🖼 локальные картинки .files/*.png"] -.->|"Claude vision → описание (кэш) #91;Ф5B#93;"| CLEAN
     CLEAN --> DOC["WikiDocument"]
     DOC -->|"build_nodes: чанкинг simple / structure / semantic #91;Ф4#93;"| NODES["чанки (nodes)"]
     NODES --> DOCSTORE[("docstore.json — текст для BM25 #91;Ф2#93;")]
@@ -32,6 +33,7 @@ CLI (всё через `uv run` — подхватывает окружение 
 - `uv run python -m rag.ingest --path <dir> --show-sections` — посмотреть, как парсятся страницы
 - `uv run python -m rag.index build --path <dir>` — собрать/пересобрать индекс (Qdrant + docstore)
 - `uv run python -m rag.index build --chunking simple|structure|semantic` — стратегия чанкинга (Фаза 4)
+- `uv run python -m rag.index build --captions` — + описать локальные картинки через Claude vision (Фаза 5B, нужен ключ)
 - `uv run python -m rag.query "вопрос" --retrieve-only` — только поиск (без API-ключа)
 - `uv run python -m rag.query "вопрос" --mode dense|bm25|hybrid` — выбрать режим поиска (по умолч. hybrid)
 - `uv run python -m rag.query "вопрос" --rerank` — добавить cross-encoder reranker (Фаза 3)

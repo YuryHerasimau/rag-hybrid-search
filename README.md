@@ -110,11 +110,12 @@ uv run python -m rag.query "вопрос" --mode hybrid --rerank
   structure — нода на секцию с хлебными крошками заголовков. Русский стеммер
   (PyStemmer) для BM25 — матчит грамматические формы. Качественно structure
   чище simple; численный замер дельты — в Фазе 6.
-- [~] **Фаза 5 — Цитаты/abstention + мультимодальность.** Сделано (A): Pydantic-ответ
+- [x] **Фаза 5 — Цитаты/abstention + мультимодальность.** A: Pydantic-ответ
   `GroundedAnswer` (answer + citations + abstained) через `structured_predict`;
   цитаты ссылаются на конкретные чанки и сверяются с найденными
-  (`unsupported_citations`); abstention на off-topic. Осталось (B): caption PNG
-  через Claude vision → текстовый узел.
+  (`unsupported_citations`); abstention на off-topic. B: локальные картинки вики →
+  Claude vision (Haiku, с кэшем) → текстовое описание в индекс
+  (`rag.index build --captions`), по умолчанию выкл.
 - [x] **Фаза 6 — Evaluation harness + CI-гейт.** Шаг 1: golden-набор,
   детерминированные retrieval-метрики (hit@k/MRR/recall@k/precision@k, явно,
   **без API**), ablation-раннер `rag.eval`. Шаг 2: generation-метрики
@@ -185,9 +186,11 @@ rag-hybrid-serach/
 ├── data/                 # корпус (в .gitignore); data/README.md — что сюда класть
 ├── docs/                 # документация (how-it-works, setup, architecture, evaluation)
 ├── src/rag/              # исходники пакета
-│   ├── ingest/           # парсинг Markdown-вики (+ caption картинок — Фаза 5)
+│   ├── ingest/           # инжест Markdown-вики
 │   │   ├── __main__.py   #   CLI инжеста
-│   │   └── markdown.py   #   разбор .md: фронтматтер, секции, header_path
+│   │   ├── markdown.py   #   разбор .md: фронтматтер, секции, header_path
+│   │   ├── clean.py      #   чистка разметки Yandex Wiki (Фаза 4)
+│   │   └── images.py     #   caption картинок через Claude vision (Фаза 5B)
 │   ├── generation/       # Claude: grounded-ответ GroundedAnswer (Фаза 5)
 │   │   └── answer.py
 │   ├── eval/             # оценка (Фаза 6): метрики, судья, ablation, CI-гейт
