@@ -142,8 +142,14 @@ def parse_markdown(raw: str, rel_path: str) -> WikiDocument:
     )
 
 
-def load_wiki(root: str | Path) -> list[WikiDocument]:
-    """Рекурсивно загружает все .md-файлы из каталога в WikiDocument."""
+def load_wiki(root: str | Path, captioner=None, cache=None) -> list[WikiDocument]:
+    """Рекурсивно загружает все .md-файлы из каталога в WikiDocument.
+
+    Если передан `captioner` (Фаза 5B), локальные картинки страницы прогоняются
+    через него и заменяются текстовым описанием ПРЯМО В СЫРОМ markdown — тогда
+    описание попадает и в структурные, и в простые чанки. По умолчанию None:
+    инжест чистый, без обращений к vision-API.
+    """
     root = Path(root)
     if not root.exists():
         raise FileNotFoundError(f"Каталог вики не найден: {root}")
@@ -153,6 +159,10 @@ def load_wiki(root: str | Path) -> list[WikiDocument]:
         rel = path.relative_to(root).as_posix()
         # errors="replace" — на реальном экспорте бывают битые байты; не роняем инжест
         raw = path.read_text(encoding="utf-8", errors="replace")
+        if captioner is not None:
+            from rag.ingest.images import caption_markdown
+
+            raw, _ = caption_markdown(raw, path.parent, captioner, cache)
         doc = parse_markdown(raw, rel)
         if not doc.text.strip():
             continue  # пустые страницы (в экспорте их бывает много) пропускаем

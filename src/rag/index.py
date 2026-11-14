@@ -142,14 +142,23 @@ def build_index(
     chunking: str = "simple",
     chunk_size: int = 512,
     chunk_overlap: int = 64,
+    caption: bool = False,
 ) -> VectorStoreIndex:
     """Строит индекс с нуля (пересоздаёт коллекцию).
 
     Чанкинг делаем ЯВНО (не через transformations), чтобы получить один список
     нод и использовать его дважды: для эмбеддингов в Qdrant и для docstore
     (BM25). Так node_id гарантированно совпадают между dense- и BM25-выдачей.
+
+    caption=True (Фаза 5B) — локальные картинки страниц описываются через Claude
+    vision и индексируются как текст (с кэшем, нужен ANTHROPIC_API_KEY).
     """
-    wiki = load_wiki(path)
+    if caption:
+        from rag.ingest.images import CaptionCache, build_vision_captioner
+
+        wiki = load_wiki(path, captioner=build_vision_captioner(), cache=CaptionCache())
+    else:
+        wiki = load_wiki(path)
     nodes = build_nodes(wiki, chunking, chunk_size, chunk_overlap)
 
     # 1) Сохраняем ноды на диск — их поднимет лексический BM25 (Фаза 2)
@@ -213,15 +222,22 @@ def _main() -> None:
     )
     build.add_argument("--chunk-size", type=int, default=512)
     build.add_argument("--chunk-overlap", type=int, default=64)
+    build.add_argument(
+        "--captions",
+        action="store_true",
+        help="описывать локальные картинки через Claude vision и индексировать (Фаза 5B, нужен ключ)",
+    )
     args = parser.parse_args()
 
     if args.cmd == "build":
-        print(f"Строю индекс из {args.path} (чанкинг: {args.chunking}) ...")
+        cap = " + captions" if args.captions else ""
+        print(f"Строю индекс из {args.path} (чанкинг: {args.chunking}{cap}) ...")
         build_index(
             args.path,
             chunking=args.chunking,
             chunk_size=args.chunk_size,
             chunk_overlap=args.chunk_overlap,
+            caption=args.captions,
         )
         print(f"Готово. Индекс в {STORAGE_DIR}")
 
