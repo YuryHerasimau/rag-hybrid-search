@@ -23,7 +23,9 @@ flowchart TD
     RERANK --> GEN["generation: Claude → GroundedAnswer answer+citations+abstained, structured_predict #91;Ф5#93;"]
     GEN --> ANS(["✅ grounded-ответ с цитатами / abstention"])
 
-    EVAL["eval: golden-набор + retrieval-метрики + ablation #91;Ф6#93;"] -.оценивает.-> RETR
+    EVAL["eval: golden-набор + retrieval-метрики + Haiku-судья #91;Ф6#93;"]
+    EVAL -.retrieval-метрики.-> RETR
+    EVAL -.faithfulness / abstention.-> GEN
 ```
 
 CLI (всё через `uv run` — подхватывает окружение проекта; про грабли см. README):
@@ -68,11 +70,14 @@ CLI (всё через `uv run` — подхватывает окружение 
 | `phase2` | llama-index-retrievers-bm25 (bm25s), **pystemmer** (рус. стеммер, явная зависимость) | Фаза 2 |
 | Фаза 3 | reranker переиспользует `sentence-transformers` из phase1; веса `bge-reranker-base` качаются при первом запуске | Фаза 3 |
 | Фаза 5 | structured output на `anthropic`/`llama-index-llms-anthropic` из phase1 (новых пакетов нет) | Фаза 5 |
-| `eval` | ragas, datasets — для generation-метрик (Шаг 2); retrieval-метрики Фазы 6 своими силами, без зависимостей | Фаза 6 |
+| `eval` | ragas, datasets — опционально, для будущего кросс-чека; текущий eval их НЕ требует | Фаза 6 |
 | `dev` | pytest, ruff | всегда |
 
 Установка: `uv sync` (ядро) или `uv sync --group phase1 --group phase2` и т.д.
 
-> Retrieval-ablation (Фаза 6, Шаг 1) считается **без API и без ragas**:
-> `uv run python -m rag.eval --golden deliveryservice.json` — метрики hit@k / MRR /
-> recall@k / precision@k по golden-набору на текущем индексе.
+> **Eval Фазы 6 не тянет внешних зависимостей.** Retrieval-метрики
+> (hit@k/MRR/recall@k/precision@k) — чистый Python; generation-метрики
+> (faithfulness/answer_relevancy/abstention) — свой лёгкий Haiku-судья
+> (`anthropic` из phase1). Запуск:
+> `uv run python -m rag.eval --golden deliveryservice.json` (retrieval, без API)
+> и `… --generation --limit 16` (generation, мелкие вызовы Haiku).
