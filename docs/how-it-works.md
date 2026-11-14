@@ -37,6 +37,7 @@ CLI (всё через `uv run` — подхватывает окружение 
 - `uv run python -m rag.query "вопрос" --rerank` — добавить cross-encoder reranker (Фаза 3)
 - `uv run python -m rag.query "вопрос"` — полный grounded-ответ через Claude (нужен ключ в .env)
 - `uv run python -m rag.eval --golden deliveryservice.json` — retrieval-ablation по golden-набору (без API, Фаза 6)
+- `uv run python -m rag.eval --golden synthetic.json --gate` — CI-гейт: сверка с порогами `eval/baseline.json`, exit 1 при регрессии
 
 > **RRF (Reciprocal Rank Fusion):** у BM25 и косинуса несопоставимые шкалы скоров,
 > поэтому складываем не скоры, а РАНГИ: `score(doc) = Σ 1/(k + rank)` (k=60).

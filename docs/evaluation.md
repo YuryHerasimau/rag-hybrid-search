@@ -17,10 +17,15 @@
 
 ## Golden-набор
 
-1. Сгенерировать synthetic Q&A из корпуса через **Ragas testset generation**.
-2. Вручную почистить до ~50–100 качественных пар.
-3. Заверсионировать в JSON (`eval/golden/`), коммитить в репозиторий — это
-   фиксированный контракт для регрессий.
+Q&A размечаются вручную и версионируются в JSON (`eval/golden/`) — фиксированный
+контракт для регрессий. Два набора:
+
+- `deliveryservice.json` — по срезу реальной вики (локально, корпус не в репо);
+- `synthetic.json` — по синтетическому корпусу `eval/corpus/` (вымышленный
+  продукт «Орбита»), который **коммитится** — на нём работает CI.
+
+Поля элемента: `question`, `relevant_sources` (метки для retrieval-метрик),
+`answerable` (false — проверка abstention), опц. `ground_truth`.
 
 ## Ablation
 
@@ -28,18 +33,31 @@
 [README](../README.md#ablation-study). Так виден изолированный вклад hybrid,
 reranker и семантического чанкинга.
 
-## CI-гейт (Фаза 6)
+## Метрики — как считаются (без ragas)
 
-GitHub Actions на PR:
+Ragas не используем — считаем сами, прозрачно:
 
-1. Прогон eval на **подмножестве** golden-set (~20 вопросов) — экономия времени
-   и денег.
-2. **LLM-judge на Claude Haiku** — дёшево.
-3. Сравнение метрик с зафиксированным baseline; **PR красный**, если метрика
-   упала ниже порога.
+- **Retrieval** (`rag.eval.metrics`) — детерминированно, без API: по
+  `relevant_sources` считаем hit@k, MRR, recall@k, precision@k (source-level,
+  чанки одного файла схлопываются).
+- **Generation** (`rag.eval.judge`) — свой лёгкий LLM-судья на Haiku:
+  faithfulness (опора на контекст) и answer_relevancy через `structured_predict`
+  (видимый промпт). Плюс `abstention_accuracy` — детерминированно (решение
+  отвечать/воздержаться против `answerable`).
+
+## CI-гейт (Фаза 6, Шаг 3)
+
+`.github/workflows/eval.yml` на push в main и на PR:
+
+1. Линт (ruff) + юнит-тесты.
+2. Сборка индекса на **синтетическом** корпусе `eval/corpus/` (реальная вики в
+   репозиторий не попадает).
+3. `rag.eval --golden synthetic.json --gate` — сверка метрик с порогами
+   `eval/baseline.json`; метрика ниже порога → **exit 1 → PR красный**.
+4. Generation-гейт — доп. шаг, включается только при наличии секрета
+   `ANTHROPIC_API_KEY` (судья на Haiku — дёшево).
 
 Практика для дешёвого и быстрого CI:
-- API-ключ в секретах репозитория;
-- кэшировать эмбеддинги как артефакт;
-- гонять подмножество, а не весь набор;
-- judge — на Haiku, не на Sonnet.
+- веса моделей (e5 + reranker) кэшируются между прогонами;
+- retrieval-гейт не требует API (всегда зелёный путь);
+- generation-гейт — на подмножестве (`--limit`), judge на Haiku.

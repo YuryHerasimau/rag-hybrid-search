@@ -1,8 +1,8 @@
 # Enterprise RAG — гибридный поиск, борьба с галлюцинациями, evaluation в CI
 
-Пет-проект senior-уровня: система вопрос-ответа по корпоративной базе знаний,
-устойчивая к галлюцинациям, с гибридным поиском, переранжировкой и
-автоматической оценкой качества ответов прямо в CI/CD.
+Система вопрос-ответа по корпоративной базе знаний, устойчивая к галлюцинациям,
+с гибридным поиском, переранжировкой и автоматической оценкой качества ответов
+прямо в CI/CD.
 
 **Главная цель проекта:** обучение технологиям RAG на практике. Поэтому строим
 инкрементально и после каждого этапа замеряем прирост метрик — чтобы *видеть*
@@ -115,12 +115,14 @@ uv run python -m rag.query "вопрос" --mode hybrid --rerank
   цитаты ссылаются на конкретные чанки и сверяются с найденными
   (`unsupported_citations`); abstention на off-topic. Осталось (B): caption PNG
   через Claude vision → текстовый узел.
-- [~] **Фаза 6 — Evaluation harness + CI-гейт.** Сделано (Шаг 1): golden-набор
-  (`eval/golden/`), детерминированные retrieval-метрики (hit@k/MRR/recall@k/
-  precision@k, реализованы явно, **без API**), ablation-раннер `rag.eval`.
-  Сделано (Шаг 2): generation-метрики (faithfulness/answer_relevancy/
-  abstention) через свой лёгкий Haiku-судью. Числа — в ablation ниже. Осталось:
-  CI-гейт на GitHub Actions с порогом регрессии (Шаг 3).
+- [x] **Фаза 6 — Evaluation harness + CI-гейт.** Шаг 1: golden-набор,
+  детерминированные retrieval-метрики (hit@k/MRR/recall@k/precision@k, явно,
+  **без API**), ablation-раннер `rag.eval`. Шаг 2: generation-метрики
+  (faithfulness/answer_relevancy/abstention) через свой лёгкий Haiku-судью.
+  Шаг 3: CI-гейт на GitHub Actions (`.github/workflows/eval.yml`) — линт, тесты,
+  затем eval на **синтетическом** корпусе `eval/corpus/` (реальная вики в репо не
+  попадает) с порогами `eval/baseline.json`; regression → PR красный.
+  Generation-гейт включается при наличии секрета `ANTHROPIC_API_KEY`.
 - [ ] **Фаза 7 (опц.) — API/UI + router.** FastAPI + Streamlit; query router и
   text-to-SQL как «фаза 2 источников».
 
@@ -186,18 +188,27 @@ rag-hybrid-serach/
 │   ├── ingest/           # парсинг Markdown-вики (+ caption картинок — Фаза 5)
 │   │   ├── __main__.py   #   CLI инжеста
 │   │   └── markdown.py   #   разбор .md: фронтматтер, секции, header_path
-│   ├── generation/       # Claude + grounded-промпт (Pydantic-схемы ответа — Фаза 5)
+│   ├── generation/       # Claude: grounded-ответ GroundedAnswer (Фаза 5)
 │   │   └── answer.py
+│   ├── eval/             # оценка (Фаза 6): метрики, судья, ablation, CI-гейт
+│   │   ├── metrics.py    #   hit@k/MRR/recall@k/precision@k (без API)
+│   │   ├── judge.py      #   Haiku-судья: faithfulness/answer_relevancy
+│   │   ├── harness.py    #   прогон golden-набора
+│   │   ├── gate.py       #   сверка с порогами baseline
+│   │   └── __main__.py   #   CLI: ablation и --gate
 │   ├── config.py         # pydantic-settings (.env)
 │   ├── embeddings.py     # multilingual-e5-small (CPU)
 │   ├── index.py          # сборка индекса: Qdrant (dense) + docstore.json (BM25)
 │   ├── retrieval.py      # dense / BM25 / RRF-гибрид / reranker
 │   └── query.py          # CLI запроса
-├── tests/                # pytest + fixtures/wiki (синтетический корпус)
+├── eval/                 # golden-наборы + синтетический корпус + пороги гейта
+│   ├── corpus/           #   синтетическая вики «Орбита» (для CI, коммитится)
+│   ├── golden/           #   размеченные Q&A (synthetic.json, deliveryservice.json)
+│   └── baseline.json     #   пороги CI-гейта
+├── .github/workflows/    # eval.yml — CI-гейт (линт, тесты, eval на синтетике)
+├── tests/                # pytest + fixtures/wiki (мини-корпус для юнит-тестов)
 ├── storage/              # индекс Qdrant + docstore (в .gitignore)
 ├── .env.example          # шаблон конфига (ключ API и т.д.)
 ├── pyproject.toml        # зависимости по фазам (uv)
 └── README.md
-
-# появится позже: eval/ (golden-set + прогоны Ragas, Фаза 6)
 ```

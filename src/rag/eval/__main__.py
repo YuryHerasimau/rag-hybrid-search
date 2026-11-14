@@ -48,9 +48,19 @@ def main() -> None:
         default=settings.cheap_model,
         help="модель генерации для eval (по умолч. дешёвая Haiku; можно Sonnet)",
     )
+    parser.add_argument(
+        "--gate",
+        action="store_true",
+        help="CI-гейт: сверить метрики с порогами eval/baseline.json, exit 1 при регрессии",
+    )
     args = parser.parse_args()
 
     golden = load_golden(args.golden)
+
+    if args.gate:
+        _run_gate(golden, args)
+        return
+
     answerable = [g for g in golden if g.answerable and g.relevant_sources]
     console.print(f"Golden: {len(golden)} вопросов, из них оцениваемых (retrieval): {len(answerable)}\n")
 
@@ -80,6 +90,39 @@ def main() -> None:
         )
         # plain print с flush: rich при выводе в пайп иногда теряет финальную строку
         print(gen.summary(), flush=True)
+
+
+def _run_gate(golden, args) -> None:
+    """Прогоняет гейт-конфиг (hybrid+rerank) и сверяет с порогами baseline.
+
+    Retrieval-метрики — всегда (без API). Generation-метрики — только с
+    --generation (нужен ключ). exit 1 при любой регрессии."""
+    import sys
+
+    from rag.eval.gate import check_gate, load_baseline
+
+    baseline = load_baseline()
+    retriever = build_retriever("hybrid", top_k=args.top_k, rerank=True, candidates=args.candidates)
+    rr = evaluate_retrieval(golden, retriever, config="hybrid + rerank", k=args.top_k)
+    print("RETRIEVAL:", rr.row(), flush=True)
+
+    gen_metrics = None
+    if args.generation:
+        from rag.generation.answer import build_llm
+
+        gen_llm = build_llm(model=args.gen_model)
+        judge_llm = build_llm(model=settings.cheap_model)
+        gr = evaluate_generation(
+            golden, retriever, gen_llm, judge_llm, config="hybrid + rerank", limit=args.limit
+        )
+        gen_metrics = gr.metrics()
+        print("GENERATION:", gr.summary(), flush=True)
+
+    result = check_gate(baseline, retrieval=rr.metrics(), generation=gen_metrics)
+    for f in result.failures:
+        print("FAIL:", f, flush=True)
+    print("GATE:", "PASS" if result.passed else "FAIL", flush=True)
+    sys.exit(0 if result.passed else 1)
 
 
 if __name__ == "__main__":

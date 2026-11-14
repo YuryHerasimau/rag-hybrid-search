@@ -1,0 +1,93 @@
+[
+  {
+    "question": "Как подтвердить email при регистрации?",
+    "relevant_sources": ["registration.md"],
+    "ground_truth": "Перейти по ссылке из письма; ссылка активна 48 часов.",
+    "answerable": true
+  },
+  {
+    "question": "Как получить access-токен в API?",
+    "relevant_sources": ["api-auth.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как обновить истёкший токен доступа?",
+    "relevant_sources": ["api-auth.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как включить двухфакторную аутентификацию?",
+    "relevant_sources": ["two-factor-auth.md"],
+    "answerable": true
+  },
+  {
+    "question": "Что делать, если потерял доступ к приложению-аутентификатору?",
+    "relevant_sources": ["two-factor-auth.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как создать проект через API?",
+    "relevant_sources": ["create-project.md"],
+    "answerable": true
+  },
+  {
+    "question": "Какие бывают статусы задач?",
+    "relevant_sources": ["tasks.md"],
+    "answerable": true
+  },
+  {
+    "question": "Какие роли есть у участников проекта?",
+    "relevant_sources": ["roles-and-access.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как настроить вебхук на событие создания задачи?",
+    "relevant_sources": ["webhooks.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как проверить подпись запроса от вебхука?",
+    "relevant_sources": ["webhooks.md"],
+    "answerable": true
+  },
+  {
+    "question": "Чем API-ключ отличается от access-токена?",
+    "relevant_sources": ["api-keys.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как отключить уведомления в ночное время?",
+    "relevant_sources": ["notifications.md"],
+    "answerable": true
+  },
+  {
+    "question": "Сколько участников доступно на тарифе Team?",
+    "relevant_sources": ["pricing.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как выгрузить все данные пространства в архив?",
+    "relevant_sources": ["data-export.md"],
+    "answerable": true
+  },
+  {
+    "question": "Как связать коммиты GitHub с задачами?",
+    "relevant_sources": ["integrations.md"],
+    "answerable": true
+  },
+  {
+    "question": "Что такое WIP-лимит на доске?",
+    "relevant_sources": ["boards.md"],
+    "answerable": true
+  },
+  {
+    "question": "Какая завтра погода в Берлине?",
+    "relevant_sources": [],
+    "answerable": false
+  },
+  {
+    "question": "Как приготовить борщ?",
+    "relevant_sources": [],
+    "answerable": false
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "_comment": "Пороги CI-гейта (Фаза 6, Шаг 3). Прогон: синтетический корпус eval/corpus, чанкинг structure, конфиг hybrid+rerank, golden synthetic.json. Пороги — нижняя граница: метрика ниже → регрессия → гейт красный. precision@k не гейтим (низок by design: 1 релевант на вопрос из 5 выдачи).",
+  "corpus": "eval/corpus",
+  "golden": "synthetic.json",
+  "chunking": "structure",
+  "gate_config": "hybrid + rerank",
+  "retrieval": {
+    "min_hit_at_k": 0.90,
+    "min_mrr": 0.85,
+    "min_recall_at_k": 0.90
+  },
+  "generation": {
+    "min_faithfulness": 0.80,
+    "min_abstention_accuracy": 0.80
+  }
+}

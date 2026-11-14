@@ -38,6 +38,14 @@ class RetrievalReport:
             f"{self.recall_at_k:.2f} | {self.precision_at_k:.2f} |"
         )
 
+    def metrics(self) -> dict[str, float]:
+        return {
+            "hit_at_k": self.hit_at_k,
+            "mrr": self.mrr,
+            "recall_at_k": self.recall_at_k,
+            "precision_at_k": self.precision_at_k,
+        }
+
 
 def _retrieved_sources(retriever, question: str) -> list[str]:
     nodes = retriever.retrieve(question)
@@ -84,6 +92,13 @@ class GenerationReport:
             f"| faithfulness={self.faithfulness:.2f} | answer_relevancy={self.answer_relevancy:.2f} "
             f"(оценено судьёй: {self.n_judged})"
         )
+
+    def metrics(self) -> dict[str, float]:
+        return {
+            "faithfulness": self.faithfulness,
+            "answer_relevancy": self.answer_relevancy,
+            "abstention_accuracy": self.abstention_accuracy,
+        }
 
 
 def evaluate_generation(

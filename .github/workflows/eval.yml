@@ -1,0 +1,55 @@
+name: eval-gate
+
+# CI-гейт качества (Фаза 6): линт, тесты, затем eval на СИНТЕТИЧЕСКОМ корпусе
+# (eval/corpus — коммитится; реальная вики в репозиторий не попадает).
+# Retrieval-гейт всегда (без API); generation-гейт — только если задан секрет
+# ANTHROPIC_API_KEY.
+
+on:
+  push:
+  pull_request:
+
+# Новый push по той же ветке отменяет ещё не завершённый прогон — не копим очередь
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python 3.10
+        run: uv python install 3.10
+
+      - name: Install dependencies
+        run: uv sync --group phase1 --group phase2 --group dev
+
+      # Веса моделей (e5 + bge-reranker) тяжёлые — кэшируем между прогонами
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-e5small-bgereranker-v1
+
+      - name: Lint (ruff)
+        run: uv run ruff check src tests
+
+      - name: Unit tests
+        run: uv run pytest -q
+
+      - name: Build eval index (synthetic corpus)
+        run: uv run python -m rag.index build --path eval/corpus --chunking structure
+
+      - name: Retrieval gate (no API)
+        run: uv run python -m rag.eval --golden synthetic.json --gate
+
+      - name: Generation gate (needs ANTHROPIC_API_KEY secret)
+        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python -m rag.eval --golden synthetic.json --gate --generation --limit 18

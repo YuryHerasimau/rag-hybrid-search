@@ -3,6 +3,7 @@
 from llama_index.core.schema import NodeWithScore, TextNode
 
 from rag.eval.dataset import GOLDEN_DIR, GoldenItem, load_golden
+from rag.eval.gate import check_gate
 from rag.eval.harness import evaluate_generation, evaluate_retrieval
 from rag.eval.judge import JudgeScore, judge_faithfulness, judge_relevancy
 from rag.eval.metrics import (
@@ -133,6 +134,42 @@ def test_evaluate_generation_penalizes_hallucinated_answer_on_offtopic():
         golden, _FakeRetriever(["a.md"]), gen_llm=_BadGen(), judge_llm=_ScoreLLM(1.0), config="t"
     )
     assert report.abstention_accuracy == 0.0
+
+
+_BASELINE = {
+    "retrieval": {"min_hit_at_k": 0.9, "min_mrr": 0.85},
+    "generation": {"min_faithfulness": 0.8, "min_abstention_accuracy": 0.8},
+}
+
+
+def test_gate_passes_when_all_metrics_above_thresholds():
+    res = check_gate(
+        _BASELINE,
+        retrieval={"hit_at_k": 1.0, "mrr": 0.95},
+        generation={"faithfulness": 0.95, "abstention_accuracy": 0.9},
+    )
+    assert res.passed
+    assert res.failures == []
+
+
+def test_gate_fails_and_reports_metric_below_threshold():
+    res = check_gate(_BASELINE, retrieval={"hit_at_k": 0.5, "mrr": 0.95})
+    assert not res.passed
+    assert any("retrieval.hit_at_k" in f for f in res.failures)
+    # mrr выше порога — не должен попасть в нарушения
+    assert not any("mrr" in f for f in res.failures)
+
+
+def test_gate_flags_missing_metric():
+    res = check_gate(_BASELINE, retrieval={"mrr": 0.95})  # нет hit_at_k
+    assert not res.passed
+    assert any("hit_at_k" in f and "не посчитана" in f for f in res.failures)
+
+
+def test_gate_skips_section_when_metrics_not_provided():
+    # без generation-метрик секция generation не проверяется (напр. CI без ключа)
+    res = check_gate(_BASELINE, retrieval={"hit_at_k": 1.0, "mrr": 0.95}, generation=None)
+    assert res.passed
 
 
 def test_evaluate_retrieval_aggregates_over_answerable_only():
