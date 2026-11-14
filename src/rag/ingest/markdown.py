@@ -17,6 +17,8 @@ from pathlib import Path
 
 import yaml
 
+from rag.ingest.clean import clean_markup
+
 _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
@@ -107,6 +109,7 @@ def _split_sections(body: str) -> list[WikiSection]:
 def parse_markdown(raw: str, rel_path: str) -> WikiDocument:
     """Парсит содержимое одного .md-файла в WikiDocument."""
     frontmatter, body = _split_frontmatter(raw)
+    body = clean_markup(body)  # снимаем разметку Yandex Wiki до разбора на секции
     sections = _split_sections(body)
 
     # Заголовок: frontmatter.title -> первый H1 -> имя файла
