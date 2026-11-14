@@ -1,11 +1,16 @@
 """Офлайн-тесты пайплайна (без сети и без API-ключа)."""
 
+from pathlib import Path
+
 from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
 
 from rag.generation.answer import QA_PROMPT
-from rag.index import to_documents
+from rag.index import build_nodes, to_documents
+from rag.ingest import load_wiki
 from rag.ingest.markdown import WikiDocument
 from rag.retrieval import RerankedRetriever, RRFHybridRetriever
+
+FIXTURES = Path(__file__).parent / "fixtures" / "wiki"
 
 
 def test_to_documents_maps_metadata():
@@ -15,6 +20,31 @@ def test_to_documents_maps_metadata():
     assert docs[0].metadata["rel_path"] == "api/payments.md"
     assert docs[0].metadata["title"] == "API платежей"
     assert docs[0].text == "тело"
+
+
+def test_build_nodes_simple_keeps_citation_metadata():
+    nodes = build_nodes(load_wiki(FIXTURES), chunking="simple")
+    assert nodes
+    assert all(n.metadata.get("rel_path") for n in nodes)
+    # simple не добавляет хлебных крошек
+    assert all("breadcrumb" not in n.metadata for n in nodes)
+
+
+def test_build_nodes_structure_prefixes_breadcrumb():
+    nodes = build_nodes(load_wiki(FIXTURES), chunking="structure")
+    assert nodes
+    # у вложенной секции крошка и в метаданных, и префиксом в тексте
+    nested = [n for n in nodes if " > " in n.metadata.get("breadcrumb", "")]
+    assert nested, "ожидали хотя бы одну вложенную секцию во фикстурах"
+    n = nested[0]
+    assert n.get_content().startswith(n.metadata["breadcrumb"])
+
+
+def test_build_nodes_rejects_unknown_strategy():
+    import pytest
+
+    with pytest.raises(ValueError):
+        build_nodes(load_wiki(FIXTURES), chunking="magic")
 
 
 def test_qa_prompt_is_grounded():
