@@ -7,9 +7,10 @@
 ```
 .md файлы (data/raw)
    │  rag.ingest.load_wiki — парсинг Markdown, фронтматтер, header_path
+   │  + rag.ingest.clean — чистка разметки Yandex Wiki (таблицы, {color}, …) [Фаза 4]
    ▼
 WikiDocument
-   │  rag.index.to_documents + SentenceSplitter — чанкинг
+   │  rag.index.build_nodes — чанкинг: simple | structure | semantic [Фаза 4]
    ▼
 чанки (nodes) ──────────────► docstore.json  (сырой текст для BM25) [Фаза 2]
    │  rag.embeddings — multilingual-e5-small (CPU), префиксы query:/passage:
@@ -33,6 +34,7 @@ rag.generation — Claude отвечает ТОЛЬКО по найденным 
 CLI (всё через `uv run` — подхватывает окружение проекта; про грабли см. README):
 - `uv run python -m rag.ingest --path <dir> --show-sections` — посмотреть, как парсятся страницы
 - `uv run python -m rag.index build --path <dir>` — собрать/пересобрать индекс (Qdrant + docstore)
+- `uv run python -m rag.index build --chunking simple|structure|semantic` — стратегия чанкинга (Фаза 4)
 - `uv run python -m rag.query "вопрос" --retrieve-only` — только поиск (без API-ключа)
 - `uv run python -m rag.query "вопрос" --mode dense|bm25|hybrid` — выбрать режим поиска (по умолч. hybrid)
 - `uv run python -m rag.query "вопрос" --rerank` — добавить cross-encoder reranker (Фаза 3)

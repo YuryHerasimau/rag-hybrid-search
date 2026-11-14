@@ -104,7 +104,11 @@ uv run python -m rag.query "вопрос" --mode hybrid --rerank
   ретривер достаёт широкий список кандидатов (`--candidates`, по умолч. 20),
   cross-encoder пере-оценивает пары «запрос↔чанк» и оставляет top_k:
   `python -m rag.query ... --rerank`. Численный замер дельты — в Фазе 6.
-- [ ] **Фаза 4 — Чанкинг.** MarkdownNodeParser vs SemanticSplitter. Замер дельты.
+- [~] **Фаза 4 — Чанкинг + чистка.** Чистка разметки Yandex Wiki (таблицы
+  `#|...||`, `{color}(...)`, `{% note/diagram %}`, html-сущности) в `ingest/clean.py`.
+  Три стратегии чанкинга (`rag.index build --chunking simple|structure|semantic`):
+  structure — нода на секцию с хлебными крошками заголовков. Численный замер
+  дельты — в Фазе 6.
 - [ ] **Фаза 5 — Мультимодальность + цитаты/abstention.** Caption PNG через
   Claude vision; Pydantic-ответ с grounded-цитатами.
 - [ ] **Фаза 6 — Evaluation harness + CI-гейт.** Генерация golden-set через
@@ -124,6 +128,7 @@ golden-набор и eval-харнесс: каждая конфигурация 
 | Naive (dense + simple chunk) | — | — | — | — |
 | + Hybrid (BM25 + RRF) | — | — | — | — |
 | + Reranker | — | — | — | — |
+| + Structure chunking | — | — | — | — |
 | + Semantic chunking | — | — | — | — |
 
 ---
