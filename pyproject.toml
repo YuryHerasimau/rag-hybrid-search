@@ -28,6 +28,9 @@ phase1 = [
 #   uv sync --group phase1 --group phase2
 phase2 = [
     "llama-index-retrievers-bm25>=0.3",
+    # Русский стеммер для BM25 (морфология: формы слова → общий корень).
+    # Тянется и транзитивно через bm25s, но зависимость от него у нас явная.
+    "pystemmer>=2.2",
 ]
 eval = [
     "ragas>=0.2",

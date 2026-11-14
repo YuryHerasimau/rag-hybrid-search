@@ -9,7 +9,6 @@
 
 from __future__ import annotations
 
-import re
 from collections import defaultdict
 
 from llama_index.core.retrievers import BaseRetriever, VectorIndexRetriever
@@ -26,28 +25,24 @@ def build_dense_retriever(top_k: int = 5) -> VectorIndexRetriever:
     return VectorIndexRetriever(index=index, similarity_top_k=top_k)
 
 
-# --- BM25 (Фаза 2) ------------------------------------------------------------
-
-_WORD_RE = re.compile(r"\w+", re.UNICODE)
-
-
-def _ru_tokenizer(text: str) -> list[str]:
-    """Простой юникод-токенизатор: нижний регистр + слова.
-
-    Дефолтный токенизатор bm25s заточен под английский; наш явно и предсказуемо
-    работает с кириллицей. Стемминг русского — потенциальное улучшение на потом.
-    """
-    return _WORD_RE.findall(text.lower())
+# --- BM25 (Фаза 2 + рус. стеммер Фазы 4) --------------------------------------
 
 
 def build_bm25_retriever(top_k: int = 5):
+    import Stemmer  # PyStemmer
     from llama_index.retrievers.bm25 import BM25Retriever
 
     nodes = load_nodes()
+    # Русский стеммер + стоп-слова (bm25s знает рус.): BM25 матчит разные
+    # грамматические формы — запрос «подтверждения номеров» находит текст
+    # «подтверждение номера». Без стемминга точный документ проваливается из
+    # топа. Английские API-термины (token, integration) стеммер не ломает.
+    # Заменяет устаревший кастомный tokenizer (bm25s его deprecated).
     return BM25Retriever.from_defaults(
         nodes=nodes,
         similarity_top_k=top_k,
-        tokenizer=_ru_tokenizer,
+        stemmer=Stemmer.Stemmer("russian"),
+        language="russian",
     )
 
 

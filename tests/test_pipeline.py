@@ -47,6 +47,17 @@ def test_build_nodes_rejects_unknown_strategy():
         build_nodes(load_wiki(FIXTURES), chunking="magic")
 
 
+def test_bm25_russian_stemmer_matches_inflections(monkeypatch):
+    # Стеммер должен находить документ по иной грамматической форме слова:
+    # запрос в ед.ч. «платёж» → текст «API платежей» (мн.ч.) матчится по корню.
+    import rag.retrieval as retr
+
+    nodes = build_nodes(load_wiki(FIXTURES), chunking="simple")
+    monkeypatch.setattr(retr, "load_nodes", lambda: nodes)
+    res = retr.build_bm25_retriever(top_k=3).retrieve("платёж")
+    assert any("payments" in n.node.metadata.get("rel_path", "") for n in res)
+
+
 def test_qdrant_client_is_singleton(tmp_path, monkeypatch):
     # Embedded-Qdrant лочит папку: второй QdrantClient на тот же путь падает.
     # _client() обязан возвращать один и тот же экземпляр в рамках процесса —

@@ -3572,6 +3572,7 @@ phase1 = [
 ]
 phase2 = [
     { name = "llama-index-retrievers-bm25" },
+    { name = "pystemmer" },
 ]
 
 [package.metadata]
@@ -3600,7 +3601,10 @@ phase1 = [
     { name = "qdrant-client", specifier = ">=1.16,<1.19" },
     { name = "sentence-transformers", specifier = ">=3.0" },
 ]
-phase2 = [{ name = "llama-index-retrievers-bm25", specifier = ">=0.3" }]
+phase2 = [
+    { name = "llama-index-retrievers-bm25", specifier = ">=0.3" },
+    { name = "pystemmer", specifier = ">=2.2" },
+]
 
 [[package]]
 name = "ragas"
