@@ -19,7 +19,10 @@ phase1 = [
     "llama-index-core>=0.11",
     "llama-index-embeddings-huggingface>=0.3",
     "llama-index-vector-stores-qdrant>=0.3",
-    "llama-index-llms-anthropic>=0.3",
+    # >=0.12.3: более ранние версии не знают claude-sonnet-5 → structured_predict
+    # уходит в легаси tool-calling путь, несовместимый с anthropic SDK 0.121+
+    # (400 "tool_choice: Input should be an object").
+    "llama-index-llms-anthropic>=0.12.3",
     # 1.19 убрал IDF_EMBEDDING_MODELS, который импортит llama-index-vector-stores-qdrant 0.10
     "qdrant-client>=1.16,<1.19",
     "sentence-transformers>=3.0",

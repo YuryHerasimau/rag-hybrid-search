@@ -1736,15 +1736,45 @@ wheels = [
 
 [[package]]
 name = "llama-index-llms-anthropic"
-version = "0.11.10"
+version = "0.12.3"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
 dependencies = [
     { name = "anthropic", extra = ["bedrock", "vertex"] },
     { name = "llama-index-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ba/2f/8f26cb43d8083497fb807c7d44a6e5dbb063ee5b5ecaa789f83a8489c47f/llama_index_llms_anthropic-0.11.10.tar.gz", hash = "sha256:6c20320564d9caccd4d998e1fbbfcfed3b55023fb6c3c0fbabba2aa123a9ba5b", size = 16190, upload-time = "2026-08-04T15:41:47.983Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/36/d49d8572b3e23f48e745739f1bc87bf8f7fa9b61024624df03424259cbdb/llama_index_llms_anthropic-0.12.3.tar.gz", hash = "sha256:3f4d389bd97ccd706c7064687ba425d6fe2b3a1d26b9b16c3cb879cc314e0276", size = 16266, upload-time = "2026-10-12T19:27:41.236Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/46/f9e59f757219e8e78df9695336950e03f17943373818e8f04fe2458d2519/llama_index_llms_anthropic-0.11.10-py3-none-any.whl", hash = "sha256:eb9bfd36847df8a222ed678a8c08babf67c240ae3169ce48572b931761ccab04", size = 16610, upload-time = "2026-08-04T15:41:46.997Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/a7/dbe9f2d9d5752ce7e7daa48d1adb95318560c926497ce3a31a91ca624850/llama_index_llms_anthropic-0.12.3-py3-none-any.whl", hash = "sha256:a88aa78fdd597ed48fa23c0587b7cfd4daed3877f08ac4aeb9363862bc1e679a", size = 16687, upload-time = "2026-10-12T19:27:40.15Z" },
+]
+
+[[package]]
+name = "llama-index-llms-anthropic"
+version = "0.13.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32'",
+    "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "anthropic", extra = ["bedrock", "vertex"] },
+    { name = "llama-index-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2e/bc/b5d546d822f54530293e07ecbf5e391030a7dcd50d30e83b4f74d3ab05ff/llama_index_llms_anthropic-0.13.0.tar.gz", hash = "sha256:c511d9bc2e5e218094b7f80fc21bccebd3754a8f243552bcd208e2738fb1e32c", size = 16265, upload-time = "2026-11-14T02:11:08.903Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/ec/422f47a566fd0e90482c13ed266219916ee81ee7d50a1a03ecf690a12f45/llama_index_llms_anthropic-0.13.0-py3-none-any.whl", hash = "sha256:846bfe770c2ed80e82c908538fe4c236b0936cbd9d7c0980edc7e95224ad3ab8", size = 16685, upload-time = "2026-11-14T02:11:07.679Z" },
 ]
 
 [[package]]
@@ -3565,7 +3595,8 @@ eval = [
 phase1 = [
     { name = "llama-index-core" },
     { name = "llama-index-embeddings-huggingface" },
-    { name = "llama-index-llms-anthropic" },
+    { name = "llama-index-llms-anthropic", version = "0.12.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "llama-index-llms-anthropic", version = "0.13.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "llama-index-vector-stores-qdrant" },
     { name = "qdrant-client" },
     { name = "sentence-transformers" },
@@ -3596,7 +3627,7 @@ eval = [
 phase1 = [
     { name = "llama-index-core", specifier = ">=0.11" },
     { name = "llama-index-embeddings-huggingface", specifier = ">=0.3" },
-    { name = "llama-index-llms-anthropic", specifier = ">=0.3" },
+    { name = "llama-index-llms-anthropic", specifier = ">=0.12.3" },
     { name = "llama-index-vector-stores-qdrant", specifier = ">=0.3" },
     { name = "qdrant-client", specifier = ">=1.16,<1.19" },
     { name = "sentence-transformers", specifier = ">=3.0" },
