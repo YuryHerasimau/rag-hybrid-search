@@ -1,141 +1,167 @@
-# Enterprise RAG — гибридный поиск, борьба с галлюцинациями, evaluation в CI
+# Enterprise RAG — Hybrid Search, Grounded Generation, CI Evaluation Gate
 
-Система вопрос-ответа по корпоративной базе знаний, устойчивая к галлюцинациям,
-с гибридным поиском, переранжировкой и автоматической оценкой качества ответов
-прямо в CI/CD.
+Система вопрос-ответа по корпоративной базе знаний (Markdown-вики + PNG-схемы).
+Построена на LlamaIndex и Claude API, оптимизирована для инференса на CPU без GPU
+и минимизации затрат на внешний API.
 
-**Главная цель проекта:** обучение технологиям RAG на практике. Поэтому строим
-инкрементально и после каждого этапа замеряем прирост метрик — чтобы *видеть*
-вклад каждого приёма (см. [ablation-таблицу](#ablation-study)).
+**Ключевые возможности:**
+
+- **Hybrid Search** — лексический поиск BM25 + плотный (векторный) поиск, слияние
+  через Reciprocal Rank Fusion (RRF).
+- **Cross-Encoder Reranking** — переоценка пар «запрос↔чанк» моделью
+  `bge-reranker-base` поверх широкого списка кандидатов.
+- **Grounded Generation** — ответ Claude возвращается структурой Pydantic с
+  обязательными цитатами на исходные чанки; при недостатке контекста —
+  `abstained = true` (контролируемый отказ отвечать).
+- **Multimodal Ingestion** — PNG-схемы индексируются через Claude vision
+  (текстовое описание) на этапе инжеста.
+- **CI Evaluation Gate** — детерминированные retrieval-метрики и LLM-судья на
+  фиксированном golden-наборе; PR блокируется при деградации качества ниже порога.
+
+**Корпус:** русскоязычная Markdown-вики продукта с англоязычными техническими
+терминами (названия полей API) → требуются мультиязычные эмбеддинги.
 
 ---
 
-## Ключевые идеи
+## Архитектура пайплайна
 
-- **Гибридный retrieval:** BM25 + плотный (векторный) поиск, слияние через
-  **RRF (Reciprocal Rank Fusion)**, поверх — **cross-encoder reranker**.
-- **Анти-галлюцинации:** ответ Claude возвращается структурой (Pydantic) с
-  обязательными цитатами на chunk-и; если контекст не позволяет ответить —
-  `abstained = true` («в базе знаний нет ответа»).
-- **Динамический чанкинг:** structure-aware по Markdown-заголовкам vs
-  семантический сплиттинг — сравниваем в ablation.
-- **Мультимодальность:** PNG-схемы/макеты из вики прогоняются через Claude vision
-  на этапе инжеста → текстовое описание индексируется как обычный узел.
-- **Evaluation-as-a-gate:** Ragas-метрики на фиксированном golden-наборе; в CI
-  падаем, если качество деградирует ниже порога.
+Индексация (offline) и обработка запроса (online):
 
-## Корпус данных
+```
+INDEXING (offline)
+  .md (data/raw) ──┐
+                   ├─▶ clean (Yandex Wiki markup) ─▶ build_nodes ─▶ ┬─▶ Qdrant (dense, e5-small)
+  PNG .files/*  ───┘        │                        (chunking:     └─▶ docstore.json (BM25)
+   └─ Claude vision caption │                  simple|structure|semantic)
+                            └─ WikiDocument
 
-Реальная база: выгрузка вики одного продукта в **Markdown** + отдельно
-**PNG-схемы/макеты** для спецификаций. Язык — в основном русский, названия полей
-API и техтерминов на английском → нужны **мультиязычные эмбеддинги**.
+QUERY (online)
+  query ─▶ retrieval (dense | bm25 | hybrid·RRF) ─▶ rerank (cross-encoder)
+        ─▶ generation (Claude ─▶ GroundedAnswer: answer + citations + abstained)
+        ─▶ grounded answer / abstention
+
+EVALUATION
+  golden set ─▶ retrieval metrics (no API) + Haiku judge (faithfulness/relevancy)
+             ─▶ CI gate (baseline.json thresholds)
+```
+
+Подробная mermaid-схема потока данных — в [docs/how-it-works.md](docs/how-it-works.md).
 
 ---
 
 ## Технологический стек
 
-Подобран под ограничение: слабый ноут (ASUS ZenBook, **без GPU**), бюджет — только
-несколько долларов на Anthropic API.
-
-| Слой | Выбор | Комментарий |
+| Слой | Выбор | Роль в системе |
 |---|---|---|
 | Retrieval-фреймворк | **LlamaIndex** | инжест, чанкинг, retrievers, RRF, обвязка reranker |
-| Генерация / структура ответа | **Claude (API) + Pydantic** | груглинг ответа с цитатами |
-| LLM (генерация) | **Claude Sonnet** | платим только за генерацию |
-| LLM (дёшево: caption, judge) | **Claude Haiku 4.5** | копейки за токен |
-| Эмбеддинги | `intfloat/multilingual-e5-small` → апгрейд `BAAI/bge-m3` | оба мультиязычные; e5-small быстрый на CPU, bge-m3 качественнее |
-| Vector store | **Qdrant** (embedded, локальная папка) | нативный hybrid; Docker не нужен |
-| BM25 | LlamaIndex `BM25Retriever` (in-memory) | прозрачно для обучения |
-| Fusion | `QueryFusionRetriever` c **RRF** | скоры BM25/cosine несопоставимы напрямую |
-| Reranker | `BAAI/bge-reranker-base` на CPU, top-20→top-5 | m3-версия для CPU слишком тяжёлая |
-| Чанкинг | `MarkdownNodeParser` → `SemanticSplitterNodeParser` | structure-aware vs semantic |
-| Картинки | Claude vision → текстовое описание при инжесте | без локальных vision-моделей |
-| Observability | **Phoenix (Arize)**, локально | видно, что именно retrieved |
-| Eval | **Ragas**: faithfulness, answer_relevancy, context_precision/recall | стандарт |
-| API / UI (опц.) | FastAPI + Streamlit | по желанию |
-
-> ⚠️ **Оплата:** подписка Claude Pro **не** даёт доступа к API. Нужен отдельный
-> баланс на console.anthropic.com (pay-as-you-go). Для этого проекта — единицы
-> долларов: эмбеддинги и reranker локальные, judge на Haiku, eval на подмножестве.
+| Генерация / структура ответа | **Claude API + Pydantic** | grounded-ответ с цитатами (`structured_predict`) |
+| LLM (генерация) | **Claude Sonnet** | синтез финального ответа |
+| LLM (caption, judge) | **Claude Haiku 4.5** | описание картинок и LLM-оценка (низкая стоимость токена) |
+| Эмбеддинги | `intfloat/multilingual-e5-small` (→ `BAAI/bge-m3`) | мультиязычные dense-векторы; e5-small — baseline для CPU |
+| Vector store | **Qdrant** (embedded, локальная папка) | хранение dense-векторов без внешнего сервиса |
+| Лексический поиск | LlamaIndex `BM25Retriever` (in-memory) | BM25 поверх `docstore.json` |
+| Стемминг BM25 | **PyStemmer** (`russian`) | нормализация грамматических форм русского языка |
+| Fusion | `RRFHybridRetriever` (RRF, `k=60`) | слияние рангов BM25 и dense (несопоставимые шкалы скоров) |
+| Reranker | `BAAI/bge-reranker-base` (CPU), top-20 → top_k | cross-encoder переоценка кандидатов |
+| Чанкинг | `simple` / `structure` / `semantic` | structure-aware по заголовкам vs семантический сплиттинг |
+| Мультимодальность | Claude vision → текстовое описание | индексация PNG-схем без локальных vision-моделей |
+| Evaluation | детерминированные метрики + Haiku-судья | retrieval- и generation-метрики без внешних зависимостей |
 
 ---
 
-## Быстрый старт
+## Требования и установка
 
-Проект на [uv](https://docs.astral.sh/uv/). **Все команды — через `uv run`** (сам
-подхватывает `.venv`; venv вручную создавать/активировать не нужно).
+### Prerequisites
 
-> ⚠️ Грабли: `uv python -m …` — это не запуск (у `uv python` своя задача: управление
-> установками Python); голый `python -m rag.ingest` берёт системный Python →
-> `No module named 'rag'`. Правильно — `uv run python -m …`.
+| Компонент | Требование |
+|---|---|
+| Python | `>= 3.10` |
+| Пакетный менеджер | [uv](https://docs.astral.sh/uv/) |
+| CPU | x86-64, GPU не требуется |
+| RAM (baseline) | ≥ 8 ГБ — `multilingual-e5-small` (~0.5 ГБ) + `bge-reranker-base` (~1.1 ГБ) |
+| RAM (bge-m3) | ≥ 16 ГБ — `bge-m3` требует ~2.3 ГБ только под веса |
+| Диск | ~5 ГБ под веса моделей (кэш HuggingFace) и индекс |
+
+Веса моделей скачиваются при первом запуске и кэшируются в HuggingFace cache.
+
+### Переменные окружения
+
+Конфигурация читается из `.env` (`pydantic-settings`); шаблон — `.env.example`.
+Все ключи опциональны и имеют значения по умолчанию; `ANTHROPIC_API_KEY`
+обязателен только для генерации, caption и LLM-судьи.
+
+| Переменная | Назначение | Обязательна | По умолчанию |
+|---|---|---|---|
+| `ANTHROPIC_API_KEY` | ключ Anthropic API (pay-as-you-go, не подписка Pro) | для генерации / caption / judge | *(пусто)* |
+| `GENERATION_MODEL` | модель синтеза ответа | нет | `claude-sonnet-5` |
+| `CHEAP_MODEL` | модель для caption и LLM-судьи | нет | `claude-haiku-4-5` |
+| `EMBEDDING_MODEL` | модель dense-эмбеддингов | нет | `intfloat/multilingual-e5-small` |
+| `RERANKER_MODEL` | cross-encoder reranker | нет | `BAAI/bge-reranker-base` |
+| `QDRANT_COLLECTION` | имя коллекции Qdrant | нет | `wiki` |
+| `QDRANT_URL` | адрес Qdrant (embedded-режим использует локальную папку `storage/qdrant`) | нет | `http://localhost:6333` |
+| `DATA_RAW_DIR` | каталог исходных `.md` | нет | `data/raw` |
+| `DATA_IMAGES_DIR` | каталог изображений | нет | `data/images` |
+
+### Установка
+
+Зависимости разбиты на группы и ставятся по фазам, чтобы не устанавливать
+ML-стек раньше необходимости:
 
 ```bash
-uv sync --group phase1 --group phase2                      # зависимости (текущая фаза)
-cp .env.example .env                                       # вписать ANTHROPIC_API_KEY (не подписка Pro)
-uv run python -m rag.ingest --path tests/fixtures/wiki     # инжест на фикстурах
-uv run python -m rag.query "вопрос" --mode hybrid --rerank
+uv sync --group phase1 --group phase2            # retrieval + hybrid (текущая фаза)
+uv sync --group phase1 --group phase2 --group dev # + pytest, ruff (разработка)
+cp .env.example .env                             # вписать ANTHROPIC_API_KEY
 ```
 
-Установка по шагам — [docs/setup.md](docs/setup.md); полный список команд и устройство
-пайплайна — [docs/how-it-works.md](docs/how-it-works.md).
+Состав групп (`phase1`, `phase2`, `eval`, `dev`) — в [pyproject.toml](pyproject.toml)
+и [docs/how-it-works.md](docs/how-it-works.md).
+
+> **Запуск только через `uv run`** — подхватывает окружение проекта.
+> `python -m rag.*` использует системный Python (`No module named 'rag'`);
+> `uv python -m …` — не команда запуска. Корректно: `uv run python -m …`.
 
 ---
 
-## План реализации и прогресс
+## Быстрый старт и CLI
 
-Легенда: `[ ]` не начато · `[~]` в работе · `[x]` готово
+```bash
+# 1. Индексация корпуса (Qdrant + docstore)
+uv run python -m rag.index build --path data/raw --chunking structure
+uv run python -m rag.index build --captions               # + caption PNG через Claude vision (нужен ключ)
 
-- [x] **Фаза 0 — Скелет проекта.** Репозиторий, зависимости (uv/pyproject,
-  установка по фазам), конфиг (`pydantic-settings` + `.env`), каркас пакета
-  `src/rag/`, парсер MD-вики с сохранением структуры заголовков + CLI
-  `python -m rag.ingest`, фикстуры и тесты (6 зелёных). Qdrant — в
-  embedded-режиме (локальная папка), Docker не требуется.
-- [x] **Фаза 1 — Naive RAG baseline.** Dense-эмбеддинги (multilingual-e5-small,
-  CPU) + простой чанкинг (SentenceSplitter) → индекс в Qdrant embedded. Retriever
-  (`python -m rag.query ... --retrieve-only`) и генерация ответа через Claude
-  (`python -m rag.query ...`, grounded-промпт). Численный baseline по Ragas
-  заполним в Фазе 6, когда будет golden-набор.
-- [x] **Фаза 2 — Hybrid.** + BM25 (лексический, `bm25s`) + слияние с dense через
-  **RRF** (реализован явно в `RRFHybridRetriever`). Ноды сохраняются в
-  `storage/docstore.json` при сборке; режим выбирается флагом
-  `python -m rag.query ... --mode dense|bm25|hybrid`. Численный замер дельты —
-  в Фазе 6 (нужен golden-набор).
-- [x] **Фаза 3 — Reranker.** + `bge-reranker-base` (cross-encoder). Базовый
-  ретривер достаёт широкий список кандидатов (`--candidates`, по умолч. 20),
-  cross-encoder пере-оценивает пары «запрос↔чанк» и оставляет top_k:
-  `python -m rag.query ... --rerank`. Численный замер дельты — в Фазе 6.
-- [x] **Фаза 4 — Чанкинг + чистка.** Чистка разметки Yandex Wiki (таблицы
-  `#|...||`, `{color}(...)`, `{% note/diagram %}`, html-сущности) в `ingest/clean.py`.
-  Три стратегии чанкинга (`rag.index build --chunking simple|structure|semantic`):
-  structure — нода на секцию с хлебными крошками заголовков. Русский стеммер
-  (PyStemmer) для BM25 — матчит грамматические формы. Качественно structure
-  чище simple; численный замер дельты — в Фазе 6.
-- [x] **Фаза 5 — Цитаты/abstention + мультимодальность.** A: Pydantic-ответ
-  `GroundedAnswer` (answer + citations + abstained) через `structured_predict`;
-  цитаты ссылаются на конкретные чанки и сверяются с найденными
-  (`unsupported_citations`); abstention на off-topic. B: локальные картинки вики →
-  Claude vision (Haiku, с кэшем) → текстовое описание в индекс
-  (`rag.index build --captions`), по умолчанию выкл.
-- [x] **Фаза 6 — Evaluation harness + CI-гейт.** Шаг 1: golden-набор,
-  детерминированные retrieval-метрики (hit@k/MRR/recall@k/precision@k, явно,
-  **без API**), ablation-раннер `rag.eval`. Шаг 2: generation-метрики
-  (faithfulness/answer_relevancy/abstention) через свой лёгкий Haiku-судью.
-  Шаг 3: CI-гейт на GitHub Actions (`.github/workflows/eval.yml`) — линт, тесты,
-  затем eval на **синтетическом** корпусе `eval/corpus/` (реальная вики в репо не
-  попадает) с порогами `eval/baseline.json`; regression → PR красный.
-  Generation-гейт включается при наличии секрета `ANTHROPIC_API_KEY`.
-- [ ] **Фаза 7 (опц.) — API/UI + router.** FastAPI + Streamlit; query router и
-  text-to-SQL как «фаза 2 источников».
+# 2. Поиск и генерация
+uv run python -m rag.query "вопрос" --retrieve-only       # только поиск (без API)
+uv run python -m rag.query "вопрос" --mode dense|bm25|hybrid --rerank
+uv run python -m rag.query "вопрос"                       # grounded-ответ через Claude (нужен ключ)
 
-## Ablation study
+# 3. Оценка качества
+uv run python -m rag.eval --golden deliveryservice.json              # retrieval-ablation (без API)
+uv run python -m rag.eval --golden deliveryservice.json --generation # + generation-метрики (Haiku)
+uv run python -m rag.eval --golden synthetic.json --gate             # CI-гейт (exit 1 при регрессии)
 
-Главный артефакт проекта — изолированный вклад каждого приёма в числах.
+# 4. Тесты и линт
+uv run pytest -q
+uv run ruff check src tests
+```
 
-### Retrieval-метрики (Шаг 1, без API)
+Основные флаги CLI:
 
-Детерминированная оценка поиска по golden-набору (`rag.eval`): нашёлся ли нужный
-документ и на какой позиции. Прогон на срезе `api/deliveryservice` (77 файлов),
-чанкинг `structure`, 14 размеченных вопросов, k=5.
+- `rag.ingest --path <dir> [--show-sections]` — парсинг `.md` без построения индекса.
+- `rag.index build --path <dir> --chunking simple|structure|semantic [--captions]`.
+- `rag.query "..." --mode dense|bm25|hybrid [--rerank] [--candidates N] [--retrieve-only]`.
+- `rag.eval --golden <file> [--generation] [--gate] [--limit N] [--gen-model <id>] [--top-k K] [--candidates N]`.
+
+Human-in-the-loop прогон (ручная разметка ответов + сверка с LLM-судьёй):
+`rag.eval.human run|score` — см. [docs/evaluation.md](docs/evaluation.md).
+
+---
+
+## Бенчмарки (Ablation Study)
+
+Изолированный вклад каждого приёма в числах. Прогон на срезе `api/deliveryservice`
+(77 файлов), чанкинг `structure`, `k=5`.
+
+### Retrieval (детерминированные метрики, без API)
 
 | Конфигурация | hit@5 | MRR | recall@5 | precision@5 |
 |---|---|---|---|---|
@@ -144,62 +170,89 @@ uv run python -m rag.query "вопрос" --mode hybrid --rerank
 | hybrid (BM25 + RRF) | 0.86 | 0.72 | 0.82 | 0.45 |
 | hybrid + reranker | **0.93** | **0.80** | **0.93** | **0.68** |
 
-Что видно: **reranker выигрывает по всем метрикам**; bm25 в одиночку слабее всех;
-**hybrid по MRR/precision чуть хуже dense** (RRF-консенсус размывает точность
-dense, когда bm25 не согласен) — и именно reranker поверх это исправляет.
+- Reranker улучшает все метрики и даёт лучшую конфигурацию.
+- BM25 в одиночку — слабейший режим.
+- Hybrid по MRR/precision незначительно уступает dense: RRF-консенсус размывает
+  точность dense, когда BM25 не согласен; reranker это компенсирует.
+- `precision@k` при ~1 релевантном источнике на вопрос — вспомогательный сигнал.
 
-> `precision@k` при ~1 релевантном источнике на вопрос — вспомогательный сигнал;
-> основные метрики здесь — `hit@k`, `MRR`, `recall@k`.
+### Generation (LLM-судья на Haiku)
 
-> Воспроизвести: `uv run python -m rag.index build --path <срез> --chunking structure`
-> затем `uv run python -m rag.eval --golden deliveryservice.json`.
-
-### Generation-метрики (Шаг 2, свой Haiku-судья)
-
-Оценка **самого ответа** через лёгкий LLM-судью (прозрачный промпт, не ragas).
-Прогон: `hybrid + rerank`, chunking=`structure`, генерация и судья — Haiku,
+Прогон: `hybrid + rerank`, chunking `structure`, генерация и судья — Haiku,
 16 вопросов golden-набора.
 
 | Метрика | Значение | Что показывает |
 |---|---|---|
-| faithfulness | **0.95** | ответ опирается на контекст (прямой прокси галлюцинаций) |
-| answer_relevancy | 0.83 | ответ по существу вопроса |
-| abstention_accuracy | **0.94** | верно решает отвечать / воздержаться (15/16) |
+| faithfulness | **0.95** | ответ опирается на контекст (прокси галлюцинаций) |
+| answer_relevancy | 0.83 | релевантность ответа вопросу |
+| abstention_accuracy | **0.94** | корректность решения отвечать / воздержаться (15/16) |
 
-Из 14 отвечаемых Haiku ответил на 13 (один ошибочно пропустил), оба off-topic
-корректно ушли в abstention. context_precision/recall — в retrieval-таблице выше
-(recall@k / precision@k).
+- Из 14 отвечаемых вопросов Haiku ответил на 13, оба off-topic корректно ушли в abstention.
+- Генерация повышается до Sonnet флагом `--gen-model claude-sonnet-5` (дороже, меньше abstention-ошибок).
 
-> Воспроизвести: `uv run python -m rag.eval --golden deliveryservice.json --generation --limit 16`.
-> Генерацию можно поднять до Sonnet: `--gen-model claude-sonnet-5` (дороже, abstention-ошибок меньше).
+Методология и воспроизведение — [docs/evaluation.md](docs/evaluation.md).
 
 ---
 
-## Документация
+## CI/CD и контроль качества
 
-- [docs/how-it-works.md](docs/how-it-works.md) — карта пайплайна, полный справочник CLI, артефакты на диске
-- [docs/setup.md](docs/setup.md) — установка и запуск локально
-- [docs/architecture.md](docs/architecture.md) — архитектура и обоснование решений
-- [docs/evaluation.md](docs/evaluation.md) — методология оценки и CI-гейт
+GitHub Actions ([.github/workflows/eval.yml](.github/workflows/eval.yml)), два job'а:
+
+1. **`lint-test`** — `ruff check` + `pytest`, без загрузки моделей.
+2. **`eval-gate`** (`needs: lint-test`) — сборка индекса и eval на **синтетическом**
+   корпусе `eval/corpus/` (реальная вики в репозиторий не коммитится, CI
+   воспроизводим без приватных данных):
+   - **Retrieval-гейт** — выполняется всегда, без API.
+   - **Generation-гейт** — только при наличии секрета `ANTHROPIC_API_KEY`.
+
+Пороги заданы в [eval/baseline.json](eval/baseline.json); `rag.eval --gate`
+сверяет метрики с порогами и возвращает exit 1 при регрессии → PR блокируется.
+
+| Группа порогов | Метрики |
+|---|---|
+| retrieval | `hit@k ≥ 0.90`, `MRR ≥ 0.85`, `recall@k ≥ 0.90` |
+| generation | `faithfulness ≥ 0.80`, `abstention_accuracy ≥ 0.80` |
+
+`concurrency` отменяет незавершённый прогон при новом push в ту же ветку.
+
+---
+
+## Статус и Roadmap
+
+**Статус:** фазы 0–6 завершены — система функциональна end-to-end (hybrid-поиск,
+reranker, grounded-генерация с цитатами и abstention, мультимодальный инжест,
+CI-гейт, human-in-the-loop eval). 70 тестов, `ruff` чист.
+
+**Roadmap (опционально):**
+
+- [ ] **Фаза 7 — API/UI + router.** FastAPI + Streamlit; query router и
+  text-to-SQL как второй источник данных.
+- [ ] Расширение golden- и синтетического наборов.
+- [ ] Прогон `--captions` на полном реальном корпусе.
+
+Детальная история фаз и обоснование решений — [docs/architecture.md](docs/architecture.md).
+
+---
 
 ## Структура репозитория
 
 ```
 rag-hybrid-search/
-├── data/                 # корпус (в .gitignore); data/README.md — что сюда класть
+├── data/                 # корпус (в .gitignore); data/README.md — формат входных данных
 ├── docs/                 # документация (how-it-works, setup, architecture, evaluation)
 ├── src/rag/              # исходники пакета
 │   ├── ingest/           # инжест Markdown-вики
 │   │   ├── __main__.py   #   CLI инжеста
 │   │   ├── markdown.py   #   разбор .md: фронтматтер, секции, header_path
-│   │   ├── clean.py      #   чистка разметки Yandex Wiki (Фаза 4)
-│   │   └── images.py     #   caption картинок через Claude vision (Фаза 5B)
-│   ├── generation/       # Claude: grounded-ответ GroundedAnswer (Фаза 5)
+│   │   ├── clean.py      #   чистка разметки Yandex Wiki
+│   │   └── images.py     #   caption картинок через Claude vision
+│   ├── generation/       # Claude: grounded-ответ GroundedAnswer
 │   │   └── answer.py
-│   ├── eval/             # оценка (Фаза 6): метрики, судья, ablation, CI-гейт
+│   ├── eval/             # оценка: метрики, судья, ablation, CI-гейт
 │   │   ├── metrics.py    #   hit@k/MRR/recall@k/precision@k (без API)
 │   │   ├── judge.py      #   Haiku-судья: faithfulness/answer_relevancy
 │   │   ├── harness.py    #   прогон golden-набора
+│   │   ├── human.py      #   human-in-the-loop прогон и сверка с судьёй
 │   │   ├── gate.py       #   сверка с порогами baseline
 │   │   └── __main__.py   #   CLI: ablation и --gate
 │   ├── config.py         # pydantic-settings (.env)
@@ -210,11 +263,23 @@ rag-hybrid-search/
 ├── eval/                 # golden-наборы + синтетический корпус + пороги гейта
 │   ├── corpus/           #   синтетическая вики «Орбита» (для CI, коммитится)
 │   ├── golden/           #   размеченные Q&A (synthetic.json, deliveryservice.json)
+│   ├── human/            #   вопросы для human-in-the-loop
 │   └── baseline.json     #   пороги CI-гейта
 ├── .github/workflows/    # eval.yml — CI-гейт (линт, тесты, eval на синтетике)
 ├── tests/                # pytest + fixtures/wiki (мини-корпус для юнит-тестов)
 ├── storage/              # индекс Qdrant + docstore (в .gitignore)
-├── .env.example          # шаблон конфига (ключ API и т.д.)
+├── .env.example          # шаблон конфигурации
 ├── pyproject.toml        # зависимости по фазам (uv)
 └── README.md
 ```
+
+## Документация
+
+- [docs/how-it-works.md](docs/how-it-works.md) — карта пайплайна, справочник CLI, артефакты на диске.
+- [docs/setup.md](docs/setup.md) — установка и запуск локально.
+- [docs/architecture.md](docs/architecture.md) — архитектура и обоснование решений.
+- [docs/evaluation.md](docs/evaluation.md) — методология оценки и CI-гейт.
+
+## Лицензия
+
+TODO: добавить файл `LICENSE`. Лицензия проекта пока не определена.
