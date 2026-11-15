@@ -185,7 +185,7 @@ dense, когда bm25 не согласен) — и именно reranker по�
 ## Структура репозитория
 
 ```
-rag-hybrid-serach/
+rag-hybrid-search/
 ├── data/                 # корпус (в .gitignore); data/README.md — что сюда класть
 ├── docs/                 # документация (how-it-works, setup, architecture, evaluation)
 ├── src/rag/              # исходники пакета
