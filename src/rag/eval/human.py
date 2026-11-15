@@ -50,24 +50,26 @@ def _run(args) -> None:
         top_sources = [n.node.metadata.get("rel_path", "?") for n in nodes]
         bad = unsupported_citations(ans, nodes)
 
-        console.print(f"\n[bold]#{i}. {q}[/bold]", markup=False)
+        # style= вместо [tags]: цвет применяется, а контент печатается литерально
+        # (markup=False защищает скобки в путях/тексте от трактовки как разметки).
+        console.print(f"\n#{i}. {q}", style="bold", markup=False)
         if ans.abstained:
-            console.print("[yellow]  воздержался:[/yellow]", ans.answer, markup=False)
+            console.print("  воздержался:", ans.answer, style="yellow", markup=False)
         else:
             console.print("  ответ:", ans.answer, markup=False)
-            console.print("  цитаты:", [c.source for c in ans.citations], markup=False)
+            console.print("  цитаты:", _dedup(c.source for c in ans.citations), markup=False)
         if bad:
-            console.print("  [red]⚠ висячие источники:[/red]", bad, markup=False)
-        console.print("  [dim]top-источники:[/dim]", top_sources[: args.top_k], markup=False)
+            console.print("  [!] висячие источники:", _dedup(bad), style="red", markup=False)
+        console.print("  top-источники:", _dedup(top_sources[: args.top_k]), style="dim", markup=False)
 
         rec = {
             "question": q,
             "answerable_expected": item.get("answerable"),
             "abstained": ans.abstained,
             "answer": ans.answer,
-            "citations": [c.source for c in ans.citations],
+            "citations": _dedup(c.source for c in ans.citations),
             "unsupported_citations": bad,
-            "top_sources": top_sources,
+            "top_sources": _dedup(top_sources),
             # заполнить вручную: 1 — да, 0 — нет, null — не оценено
             "human_correct": None,  # ответ фактически верный?
             "human_grounded": None,  # опирается на источники (без выдумок)?
@@ -95,6 +97,19 @@ def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
+def _dedup(items) -> list:
+    """Убрать повторы, сохранив порядок. Один файл даёт несколько чанков при
+    structure-чанкинге, а модель цитирует источник на каждое утверждение —
+    в выводе и results.json это лишний шум."""
+    seen: set = set()
+    out: list = []
+    for x in items:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+
 def _score(args) -> None:
     results = json.loads(Path(args.results).read_text(encoding="utf-8"))
 
@@ -117,7 +132,7 @@ def _score(args) -> None:
         # согласие: судья ≥0.5 трактуем как «grounded=1»
         agree = _mean([1.0 if (h == 1) == (j >= 0.5) else 0.0 for h, j in pairs])
         console.print(
-            f"\n[bold]Согласие человек↔Haiku-судья[/bold] по grounded: {agree:.2f} (пар {len(pairs)})"
+            f"\n[bold]Согласие человек<->Haiku-судья[/bold] по grounded: {agree:.2f} (пар {len(pairs)})"
         )
 
 
