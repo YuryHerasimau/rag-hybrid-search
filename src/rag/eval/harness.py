@@ -33,9 +33,18 @@ class RetrievalReport:
     k: int
 
     def row(self) -> str:
+        """Строка markdown-таблицы (для ablation с заголовком, см. __main__)."""
         return (
             f"| {self.config} | {self.hit_at_k:.2f} | {self.mrr:.2f} | "
             f"{self.recall_at_k:.2f} | {self.precision_at_k:.2f} |"
+        )
+
+    def summary(self) -> str:
+        """Самоописательная одна строка (для gate-вывода, парно с GenerationReport)."""
+        return (
+            f"[{self.config}] n={self.n} | hit@{self.k}={self.hit_at_k:.2f} "
+            f"| mrr={self.mrr:.2f} | recall@{self.k}={self.recall_at_k:.2f} "
+            f"| precision@{self.k}={self.precision_at_k:.2f}"
         )
 
     def metrics(self) -> dict[str, float]:

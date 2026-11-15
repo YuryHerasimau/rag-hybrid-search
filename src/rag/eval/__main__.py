@@ -122,7 +122,7 @@ def _run_gate(golden, args) -> None:
     label = _config_label(mode, rerank)
     retriever = _build_eval_retriever(mode, rerank, args)
     rr = evaluate_retrieval(golden, retriever, config=label, k=args.top_k)
-    print("RETRIEVAL:", rr.row(), flush=True)
+    print("RETRIEVAL:", rr.summary(), flush=True)
 
     gen_metrics = None
     if args.generation:
