@@ -89,7 +89,7 @@ def _run(args) -> None:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
-    console.print(f"\n[green]Записано {len(results)} ответов →[/green] {out}")
+    console.print(f"\n[green]Записано {len(results)} ответов ->[/green] {out}")
     console.print("Проставь human_correct / human_grounded / human_abstention_ok, затем: score")
 
 
